@@ -77,6 +77,7 @@ const (
 	STYLE_BOLD    = 1
 	STYLE_REVERSE = 7
 
+	COLOR_RED  = 31
 	COLOR_BLUE = 34
 	COLOR_CYAN = 36
 )
@@ -96,47 +97,56 @@ func (screen *Screen) Apply(effects ...int) {
 }
 
 type Fm struct {
-	screen Screen
+	screen  Screen
+	message error
 
-	path        string
-	pathChanged bool
-
+	path   string
 	items  []fs.FileInfo
 	cursor int
 }
 
-func (fm *Fm) Refresh() {
-	if fm.pathChanged {
-		var err error
+func fmInit(path string) Fm {
+	path, err := filepath.Abs(path)
+	handleError(err)
 
-		fm.items, err = ioutil.ReadDir(fm.path)
-		handleError(err)
-
-		sort.Slice(fm.items, func(i, j int) bool {
-			if fm.items[i].IsDir() != fm.items[j].IsDir() {
-				return fm.items[i].IsDir()
-			} else {
-				return fm.items[i].Name() < fm.items[j].Name()
-			}
-		})
-
-		fm.cursor = 0
-		fm.pathChanged = false
+	fm := Fm{
+		screen: screenInit(),
+		path:   path,
 	}
+
+	fm.Refresh()
+	fm.Render()
+
+	return fm
+}
+
+func (fm *Fm) Refresh() error {
+	items, err := ioutil.ReadDir(fm.path)
+	if err != nil {
+		return err
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].IsDir() != items[j].IsDir() {
+			return items[i].IsDir()
+		} else {
+			return items[i].Name() < items[j].Name()
+		}
+	})
+
+	fm.items = items
+	fm.cursor = 0
+	return nil
 }
 
 func (fm *Fm) Render() {
 	fm.screen.Clear()
 
-	realPath, err := filepath.Abs(fm.path)
-	handleError(err)
-
 	fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_CYAN)
-	fmt.Fprint(fm.screen.output, realPath)
-	fm.screen.Apply(STYLE_NONE)
+	fmt.Fprint(fm.screen.output, fm.path)
 
-	start := fm.cursor - fm.cursor%(fm.screen.height-1)
-	last := min(len(fm.items), fm.screen.height-1+start)
+	start := fm.cursor - fm.cursor%(fm.screen.height-2)
+	last := min(len(fm.items), fm.screen.height-2+start)
 
 	for i := start; i < last; i++ {
 		fm.screen.Apply(STYLE_NONE)
@@ -151,25 +161,47 @@ func (fm *Fm) Render() {
 		}
 
 		fmt.Fprint(fm.screen.output, fm.items[i].Name())
+	}
 
-		if fm.items[i].IsDir() {
-			fmt.Fprint(fm.screen.output, "/")
-		}
+	fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_RED)
+
+	if fm.message != nil {
+		fmt.Fprintf(fm.screen.output, "\r\n\x1b[%dH%s", fm.screen.height, fm.message)
+		fm.message = nil
 	}
 
 	fm.screen.output.Flush()
 }
 
-func main() {
-	fm := Fm{
-		screen: screenInit(),
+func (fm *Fm) Back() {
+	if fm.path != "/" {
+		savePath := fm.path
+		fm.path = filepath.Dir(fm.path)
 
-		path:        "./",
-		pathChanged: true,
+		err := fm.Refresh()
+		if err != nil {
+			fm.message = err
+			fm.path = savePath
+		}
 	}
+}
 
-	fm.Refresh()
-	fm.Render()
+func (fm *Fm) Enter() {
+	if len(fm.items) > 0 && fm.items[fm.cursor].IsDir() {
+		savePath := fm.path
+		fm.path = filepath.Join(fm.path, fm.items[fm.cursor].Name())
+
+		err := fm.Refresh()
+		if err != nil {
+			fm.message = err
+			fm.path = savePath
+		}
+	}
+}
+
+func main() {
+	fm := fmInit("./")
+
 	for {
 		ch := fm.screen.Input()
 
@@ -183,6 +215,10 @@ func main() {
 			if fm.cursor > 0 {
 				fm.cursor--
 			}
+		} else if ch == 'h' {
+			fm.Back()
+		} else if ch == 'l' {
+			fm.Enter()
 		}
 
 		fm.Render()
