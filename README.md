@@ -1,7 +1,7 @@
 # Fm
 A WIP File Manager
 
-![Fm](img/fm-00.jpeg)
+![Fm](img/fm-01.jpeg)
 
 ## Quick Start
 ```console

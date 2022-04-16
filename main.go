@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"golang.org/x/term"
 )
@@ -133,7 +132,7 @@ func (fm *Fm) Render() {
 	handleError(err)
 
 	fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_CYAN)
-	fmt.Fprint(fm.screen.output, strings.Replace(realPath, os.Getenv("HOME"), "~", 1))
+	fmt.Fprint(fm.screen.output, realPath)
 	fm.screen.Apply(STYLE_NONE)
 
 	start := fm.cursor - fm.cursor%(fm.screen.height-1)
