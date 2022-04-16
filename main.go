@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -23,7 +22,7 @@ func min(a, b int) int {
 
 func handleError(err error) {
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 		os.Exit(1)
 	}
 }
@@ -105,25 +104,10 @@ type Fm struct {
 	cursor int
 }
 
-func fmInit(path string) Fm {
-	path, err := filepath.Abs(path)
-	handleError(err)
-
-	fm := Fm{
-		screen: screenInit(),
-		path:   path,
-	}
-
-	fm.Refresh()
-	fm.Render()
-
-	return fm
-}
-
-func (fm *Fm) Refresh() error {
-	items, err := ioutil.ReadDir(fm.path)
+func listDir(path string) ([]fs.FileInfo, error) {
+	items, err := ioutil.ReadDir(path)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	sort.Slice(items, func(i, j int) bool {
@@ -134,9 +118,25 @@ func (fm *Fm) Refresh() error {
 		}
 	})
 
-	fm.items = items
-	fm.cursor = 0
-	return nil
+	return items, nil
+}
+
+func fmInit(path string) Fm {
+	path, err := filepath.Abs(path)
+	handleError(err)
+
+	items, err := listDir(path)
+	handleError(err)
+
+	fm := Fm{
+		screen: screenInit(),
+
+		path:  path,
+		items: items,
+	}
+
+	fm.Render()
+	return fm
 }
 
 func (fm *Fm) Render() {
@@ -175,33 +175,41 @@ func (fm *Fm) Render() {
 
 func (fm *Fm) Back() {
 	if fm.path != "/" {
-		savePath := fm.path
-		fm.path = filepath.Dir(fm.path)
+		newPath := filepath.Dir(fm.path)
+		items, err := listDir(newPath)
 
-		err := fm.Refresh()
 		if err != nil {
 			fm.message = err
-			fm.path = savePath
+		} else {
+			fm.path = newPath
+			fm.items = items
+			fm.cursor = 0
 		}
 	}
 }
 
 func (fm *Fm) Enter() {
 	if len(fm.items) > 0 && fm.items[fm.cursor].IsDir() {
-		savePath := fm.path
-		fm.path = filepath.Join(fm.path, fm.items[fm.cursor].Name())
+		newPath := filepath.Join(fm.path, fm.items[fm.cursor].Name())
+		items, err := listDir(newPath)
 
-		err := fm.Refresh()
 		if err != nil {
 			fm.message = err
-			fm.path = savePath
+		} else {
+			fm.path = newPath
+			fm.items = items
+			fm.cursor = 0
 		}
 	}
 }
 
 func main() {
-	fm := fmInit("./")
+	initPath := "./"
+	if len(os.Args) > 1 {
+		initPath = os.Args[1]
+	}
 
+	fm := fmInit(initPath)
 	for {
 		ch := fm.screen.Input()
 
