@@ -285,11 +285,11 @@ func (fm *Fm) Back() {
 	}
 }
 
-func (fm *Fm) Enter() {
+func (fm *Fm) Enter(program string) {
 	if len(fm.items) > 0 {
 		itemPath := filepath.Join(fm.path, fm.items[fm.cursor].Name())
 
-		if fm.items[fm.cursor].IsDir() {
+		if fm.items[fm.cursor].IsDir() && len(program) == 0 {
 			items, err := listDir(itemPath)
 
 			if err != nil {
@@ -302,7 +302,11 @@ func (fm *Fm) Enter() {
 		} else {
 			fm.screen.Reset()
 
-			cmd := exec.Command(os.Getenv("EDITOR"), itemPath)
+			if len(program) == 0 {
+				program = os.Getenv("EDITOR")
+			}
+
+			cmd := exec.Command(program, itemPath)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			fm.message = cmd.Run()
@@ -342,7 +346,13 @@ func main() {
 			fm.Back()
 
 		case 'l':
-			fm.Enter()
+			fm.Enter("")
+
+		case 'o':
+			query, ok := fm.screen.Prompt("Open: ")
+			if ok {
+				fm.Enter(query)
+			}
 
 		case '/':
 			query, ok := fm.screen.Prompt("/")
