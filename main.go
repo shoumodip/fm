@@ -173,6 +173,15 @@ func (fm *Fm) Render() {
 	fm.screen.output.Flush()
 }
 
+func (fm *Fm) Search(pred string) {
+	for i, item := range fm.items {
+		if item.Name() == pred {
+			fm.cursor = i
+			break
+		}
+	}
+}
+
 func (fm *Fm) Back() {
 	if fm.path != "/" {
 		newPath := filepath.Dir(fm.path)
@@ -181,9 +190,9 @@ func (fm *Fm) Back() {
 		if err != nil {
 			fm.message = err
 		} else {
-			fm.path = newPath
 			fm.items = items
-			fm.cursor = 0
+			fm.Search(filepath.Base(fm.path))
+			fm.path = newPath
 		}
 	}
 }
