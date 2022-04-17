@@ -25,3 +25,4 @@ $ fm
 | <kbd>N</kbd> | Find the previous match for the previous search |
 | <kbd>d</kbd> | Create a directory                              |
 | <kbd>f</kbd> | Create a file                                   |
+| <kbd>D</kbd> | Delete item under cursor                        |

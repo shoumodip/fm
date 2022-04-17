@@ -143,6 +143,29 @@ func (screen *Screen) Prompt(query string) (string, bool) {
 	}
 }
 
+func (screen *Screen) Confirm(query string) bool {
+	query = query + " (y/n): "
+
+	screen.ShowCursor()
+	defer screen.HideCursor()
+
+	screen.Bottom()
+	for {
+		fmt.Fprint(screen.output, "\r\x1b[K")
+
+		screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_BLUE)
+		fmt.Fprint(screen.output, query)
+
+		screen.output.Flush()
+
+		ch := screen.Input()
+		if ch == byte(27) || ch == 'n' || ch == 'N' {
+			return false
+		} else if ch == 'y' || ch == 'Y' {
+			return true
+		}
+	}
+}
 type Fm struct {
 	screen  Screen
 	message error
@@ -316,6 +339,12 @@ func (fm *Fm) Enter(program string) {
 	}
 }
 
+func (fm *Fm) Refresh() {
+	items, err := listDir(fm.path)
+	handleError(err)
+	fm.items = items
+}
+
 func main() {
 	initPath := "./"
 	if len(os.Args) > 1 {
@@ -394,9 +423,7 @@ func main() {
 				fm.message = os.MkdirAll(filepath.Join(fm.path, query), 0750)
 
 				if fm.message == nil {
-					items, err := listDir(fm.path)
-					handleError(err)
-					fm.items = items
+					fm.Refresh()
 				}
 			}
 
@@ -408,10 +435,21 @@ func main() {
 
 				if fm.message == nil {
 					file.Close()
+					fm.Refresh()
+				}
+			}
 
-					items, err := listDir(fm.path)
-					handleError(err)
-					fm.items = items
+		case 'D':
+			if len(fm.items) > 0 {
+				item := fm.items[fm.cursor].Name()
+				if fm.screen.Confirm("Delete '" + item + "'") {
+					fm.message = os.RemoveAll(filepath.Join(fm.path, item))
+
+					if fm.cursor == len(fm.items) - 1 {
+						fm.cursor--
+					}
+
+					fm.Refresh()
 				}
 			}
 		}
