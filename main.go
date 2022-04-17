@@ -353,7 +353,7 @@ func main() {
 			}
 
 		case '?':
-			query, ok := fm.screen.Prompt("/")
+			query, ok := fm.screen.Prompt("?")
 			if ok {
 				fm.searchQuery = query
 				fm.searchReverse = true
