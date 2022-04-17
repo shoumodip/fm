@@ -23,3 +23,5 @@ $ fm
 | <kbd>?</kbd> | Search for items backwards                      |
 | <kbd>n</kbd> | Find the next match for the previous search     |
 | <kbd>N</kbd> | Find the previous match for the previous search |
+| <kbd>d</kbd> | Create a directory                              |
+| <kbd>f</kbd> | Create a file                                   |

@@ -387,6 +387,33 @@ func main() {
 					fm.FindQueryReverse(fm.searchQuery, fm.cursor)
 				}
 			}
+
+		case 'd':
+			query, ok := fm.screen.Prompt("Create Dir: ")
+			if ok {
+				fm.message = os.MkdirAll(filepath.Join(fm.path, query), 0750)
+
+				if fm.message == nil {
+					items, err := listDir(fm.path)
+					handleError(err)
+					fm.items = items
+				}
+			}
+
+		case 'f':
+			query, ok := fm.screen.Prompt("Create File: ")
+			if ok {
+				file, err := os.OpenFile(filepath.Join(fm.path, query), os.O_RDONLY | os.O_CREATE, 0644)
+				fm.message = err
+
+				if fm.message == nil {
+					file.Close()
+
+					items, err := listDir(fm.path)
+					handleError(err)
+					fm.items = items
+				}
+			}
 		}
 
 		fm.Render()
