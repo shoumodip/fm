@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -74,6 +75,7 @@ func (screen *Screen) Clear() {
 func (screen *Screen) Reset() {
 	screen.Clear()
 	screen.ShowCursor()
+	screen.Apply(STYLE_NONE)
 	screen.output.Flush()
 
 	term.Restore(0, screen.orig)
@@ -284,16 +286,28 @@ func (fm *Fm) Back() {
 }
 
 func (fm *Fm) Enter() {
-	if len(fm.items) > 0 && fm.items[fm.cursor].IsDir() {
-		newPath := filepath.Join(fm.path, fm.items[fm.cursor].Name())
-		items, err := listDir(newPath)
+	if len(fm.items) > 0 {
+		itemPath := filepath.Join(fm.path, fm.items[fm.cursor].Name())
 
-		if err != nil {
-			fm.message = err
+		if fm.items[fm.cursor].IsDir() {
+			items, err := listDir(itemPath)
+
+			if err != nil {
+				fm.message = err
+			} else {
+				fm.path = itemPath
+				fm.items = items
+				fm.cursor = 0
+			}
 		} else {
-			fm.path = newPath
-			fm.items = items
-			fm.cursor = 0
+			fm.screen.Reset()
+
+			cmd := exec.Command(os.Getenv("EDITOR"), itemPath)
+			cmd.Stdin = os.Stdin
+			cmd.Stdout = os.Stdout
+			fm.message = cmd.Run()
+
+			fm.screen = screenInit()
 		}
 	}
 }
