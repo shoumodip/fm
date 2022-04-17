@@ -12,13 +12,13 @@ $ fm
 **NOTE:** Make sure `$EDITOR` is set
 
 ## Usage
-| Key | Description                                     |
-| --- | ----------------------------------------------- |
-| `j` | Move cursor down                                |
-| `k` | Move cursor up                                  |
-| `h` | Enter Parent Directory                          |
-| `l` | Enter item under cursor                         |
-| `/` | Search for items                                |
-| `?` | Search for items backwards                      |
-| `n` | Find the next match for the previous search     |
-| `N` | Find the previous match for the previous search |
+| Key          | Description                                     |
+| ------------ | ----------------------------------------------- |
+| <kbd>j</kbd> | Move cursor down                                |
+| <kbd>k</kbd> | Move cursor up                                  |
+| <kbd>h</kbd> | Enter Parent Directory                          |
+| <kbd>l</kbd> | Enter item under cursor                         |
+| <kbd>/</kbd> | Search for items                                |
+| <kbd>?</kbd> | Search for items backwards                      |
+| <kbd>n</kbd> | Find the next match for the previous search     |
+| <kbd>N</kbd> | Find the previous match for the previous search |
