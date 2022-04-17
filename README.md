@@ -9,13 +9,15 @@ $ go install
 $ fm
 ```
 
+**NOTE:** Make sure `$EDITOR` is set
+
 ## Usage
 | Key | Description                                     |
 | --- | ----------------------------------------------- |
 | `j` | Move cursor down                                |
 | `k` | Move cursor up                                  |
 | `h` | Enter Parent Directory                          |
-| `l` | Enter Directory under cursor                    |
+| `l` | Enter item under cursor                         |
 | `/` | Search for items                                |
 | `?` | Search for items backwards                      |
 | `n` | Find the next match for the previous search     |
