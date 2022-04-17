@@ -165,6 +165,7 @@ func (screen *Screen) Confirm(query string) bool {
 		}
 	}
 }
+
 type Fm struct {
 	screen  Screen
 	message error
@@ -375,7 +376,7 @@ func main() {
 
 		case 'G':
 			if len(fm.items) > 0 {
-				fm.cursor = len(fm.items)-1
+				fm.cursor = len(fm.items) - 1
 			}
 
 		case 'h':
@@ -437,7 +438,7 @@ func main() {
 		case 'f':
 			query, ok := fm.screen.Prompt("Create File: ")
 			if ok {
-				file, err := os.OpenFile(filepath.Join(fm.path, query), os.O_RDONLY | os.O_CREATE, 0644)
+				file, err := os.OpenFile(filepath.Join(fm.path, query), os.O_RDONLY|os.O_CREATE, 0644)
 				fm.message = err
 
 				if fm.message == nil {
@@ -452,7 +453,7 @@ func main() {
 				if fm.screen.Confirm("Delete '" + item + "'") {
 					fm.message = os.RemoveAll(filepath.Join(fm.path, item))
 
-					if fm.cursor == len(fm.items) - 1 {
+					if fm.cursor == len(fm.items)-1 {
 						fm.cursor--
 					}
 
