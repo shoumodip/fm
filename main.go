@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,15 +170,15 @@ type Fm struct {
 	message error
 
 	path   string
-	items  []fs.FileInfo
+	items  []fs.DirEntry
 	cursor int
 
 	searchQuery   string
 	searchReverse bool
 }
 
-func listDir(path string) ([]fs.FileInfo, error) {
-	items, err := ioutil.ReadDir(path)
+func listDir(path string) ([]fs.DirEntry, error) {
+	items, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
