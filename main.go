@@ -56,7 +56,7 @@ func screenInit() Screen {
 }
 
 func (screen *Screen) Bottom() {
-	fmt.Fprintf(screen.output, "\r\n\x1b[%dH", screen.height)
+	fmt.Fprintf(screen.output, "\x1b[%dH", screen.height)
 }
 
 func (screen *Screen) HideCursor() {
