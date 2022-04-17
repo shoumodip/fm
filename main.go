@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 
 	"golang.org/x/term"
 )
@@ -53,13 +55,25 @@ func screenInit() Screen {
 	}
 }
 
+func (screen *Screen) Bottom() {
+	fmt.Fprintf(screen.output, "\r\n\x1b[%dH", screen.height)
+}
+
+func (screen *Screen) HideCursor() {
+	fmt.Fprint(screen.output, "\x1b[?25l")
+}
+
+func (screen *Screen) ShowCursor() {
+	fmt.Fprint(screen.output, "\x1b[?25h")
+}
+
 func (screen *Screen) Clear() {
 	fmt.Fprint(screen.output, "\x1b[2J\x1b[H")
 }
 
 func (screen *Screen) Reset() {
 	screen.Clear()
-	fmt.Fprint(screen.output, "\x1b[?25h")
+	screen.ShowCursor()
 	screen.output.Flush()
 
 	term.Restore(0, screen.orig)
@@ -95,6 +109,38 @@ func (screen *Screen) Apply(effects ...int) {
 	fmt.Fprint(screen.output, "m")
 }
 
+func (screen *Screen) Prompt(query string) (string, bool) {
+	screen.ShowCursor()
+	defer screen.HideCursor()
+
+	screen.Bottom()
+	input := ""
+	for {
+		fmt.Fprint(screen.output, "\r\x1b[K")
+
+		screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_BLUE)
+		fmt.Fprint(screen.output, query)
+
+		screen.Apply(STYLE_NONE)
+		fmt.Fprint(screen.output, input)
+
+		screen.output.Flush()
+
+		ch := screen.Input()
+		if ch == byte(27) {
+			return "", false
+		} else if ch == byte(13) {
+			return input, true
+		} else if ch == byte(0x7F) {
+			if len(input) > 0 {
+				input = input[:len(input)-1]
+			}
+		} else if strconv.IsPrint(rune(ch)) {
+			input = input + string(ch)
+		}
+	}
+}
+
 type Fm struct {
 	screen  Screen
 	message error
@@ -102,6 +148,9 @@ type Fm struct {
 	path   string
 	items  []fs.FileInfo
 	cursor int
+
+	searchQuery   string
+	searchReverse bool
 }
 
 func listDir(path string) ([]fs.FileInfo, error) {
@@ -166,18 +215,55 @@ func (fm *Fm) Render() {
 	fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_RED)
 
 	if fm.message != nil {
-		fmt.Fprintf(fm.screen.output, "\r\n\x1b[%dH%s", fm.screen.height, fm.message)
+		fm.screen.Bottom()
+		fmt.Fprint(fm.screen.output, fm.message)
 		fm.message = nil
 	}
 
 	fm.screen.output.Flush()
 }
 
-func (fm *Fm) Search(pred string) {
+func (fm *Fm) FindExact(pred string) {
 	for i, item := range fm.items {
 		if item.Name() == pred {
 			fm.cursor = i
 			break
+		}
+	}
+}
+
+func (fm *Fm) FindQuery(pred string, from int) {
+	pred = strings.ToLower(pred)
+
+	for i := from + 1; i < len(fm.items); i++ {
+		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+			fm.cursor = i
+			return
+		}
+	}
+
+	for i := 0; i < from; i++ {
+		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+			fm.cursor = i
+			return
+		}
+	}
+}
+
+func (fm *Fm) FindQueryReverse(pred string, from int) {
+	pred = strings.ToLower(pred)
+
+	for i := from - 1; i >= 0; i-- {
+		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+			fm.cursor = i
+			return
+		}
+	}
+
+	for i := len(fm.items) - 1; i > from; i-- {
+		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+			fm.cursor = i
+			return
 		}
 	}
 }
@@ -191,7 +277,7 @@ func (fm *Fm) Back() {
 			fm.message = err
 		} else {
 			fm.items = items
-			fm.Search(filepath.Base(fm.path))
+			fm.FindExact(filepath.Base(fm.path))
 			fm.path = newPath
 		}
 	}
@@ -219,27 +305,66 @@ func main() {
 	}
 
 	fm := fmInit(initPath)
+	defer fm.screen.Reset()
+
 	for {
 		ch := fm.screen.Input()
 
-		if ch == 'q' {
-			break
-		} else if ch == 'j' {
+		switch ch {
+		case 'q':
+			return
+
+		case 'j':
 			if fm.cursor+1 < len(fm.items) {
 				fm.cursor++
 			}
-		} else if ch == 'k' {
+
+		case 'k':
 			if fm.cursor > 0 {
 				fm.cursor--
 			}
-		} else if ch == 'h' {
+
+		case 'h':
 			fm.Back()
-		} else if ch == 'l' {
+
+		case 'l':
 			fm.Enter()
+
+		case '/':
+			query, ok := fm.screen.Prompt("/")
+			if ok {
+				fm.searchQuery = query
+				fm.searchReverse = false
+				fm.FindQuery(query, fm.cursor)
+			}
+
+		case '?':
+			query, ok := fm.screen.Prompt("/")
+			if ok {
+				fm.searchQuery = query
+				fm.searchReverse = true
+				fm.FindQueryReverse(query, fm.cursor)
+			}
+
+		case 'n':
+			if len(fm.searchQuery) > 0 {
+				if fm.searchReverse {
+					fm.FindQueryReverse(fm.searchQuery, fm.cursor)
+				} else {
+					fm.FindQuery(fm.searchQuery, fm.cursor)
+				}
+			}
+
+		case 'N':
+			if len(fm.searchQuery) > 0 {
+				if fm.searchReverse {
+					fm.FindQuery(fm.searchQuery, fm.cursor)
+				} else {
+					fm.FindQueryReverse(fm.searchQuery, fm.cursor)
+				}
+			}
 		}
 
 		fm.Render()
 	}
-
-	fm.screen.Reset()
 }
