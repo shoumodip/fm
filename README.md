@@ -16,6 +16,8 @@ $ fm
 | ------------ | ----------------------------------------------- |
 | <kbd>j</kbd> | Move cursor down                                |
 | <kbd>k</kbd> | Move cursor up                                  |
+| <kbd>g</kbd> | Move cursor to the top                          |
+| <kbd>G</kbd> | Move cursor to the bottom                       |
 | <kbd>h</kbd> | Enter Parent Directory                          |
 | <kbd>l</kbd> | Enter item under cursor                         |
 | <kbd>o</kbd> | Open item under cursor with arbitrary program   |

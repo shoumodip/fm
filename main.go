@@ -371,6 +371,14 @@ func main() {
 				fm.cursor--
 			}
 
+		case 'g':
+			fm.cursor = 0
+
+		case 'G':
+			if len(fm.items) > 0 {
+				fm.cursor = len(fm.items)-1
+			}
+
 		case 'h':
 			fm.Back()
 
