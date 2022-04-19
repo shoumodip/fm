@@ -167,19 +167,19 @@ func (screen *Screen) Confirm(query string) bool {
 }
 
 type Item struct {
-	name     string
-	isDir    bool
-	isMarked bool
+	name  string
+	path  string
+	isDir bool
 }
 
 type Fm struct {
 	screen  Screen
 	message error
 
-	path        string
-	items       []Item
-	cursor      int
-	markedCount int
+	path   string
+	items  []Item
+	cursor int
+	marked map[string]struct{}
 
 	searchQuery   string
 	searchReverse bool
@@ -195,6 +195,7 @@ func listDir(path string) ([]Item, error) {
 	for index, entry := range entries {
 		items[index] = Item{
 			name:  entry.Name(),
+			path:  filepath.Join(path, entry.Name()),
 			isDir: entry.IsDir(),
 		}
 	}
@@ -219,9 +220,9 @@ func fmInit(path string) Fm {
 
 	fm := Fm{
 		screen: screenInit(),
-
-		path:  path,
-		items: items,
+		path:   path,
+		items:  items,
+		marked: make(map[string]struct{}),
 	}
 
 	fm.Render()
@@ -251,7 +252,7 @@ func (fm *Fm) Render() {
 
 		fmt.Fprint(fm.screen.output, fm.items[i].name)
 
-		if fm.items[i].isMarked {
+		if _, ok := fm.marked[fm.items[i].path]; ok {
 			fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_MAGENTA)
 			fmt.Fprint(fm.screen.output, "*")
 		}
@@ -330,15 +331,13 @@ func (fm *Fm) Back() {
 
 func (fm *Fm) Enter(program string) {
 	if len(fm.items) > 0 {
-		itemPath := filepath.Join(fm.path, fm.items[fm.cursor].name)
-
 		if fm.items[fm.cursor].isDir && len(program) == 0 {
-			items, err := listDir(itemPath)
+			items, err := listDir(fm.items[fm.cursor].path)
 
 			if err != nil {
 				fm.message = err
 			} else {
-				fm.path = itemPath
+				fm.path = fm.items[fm.cursor].path
 				fm.items = items
 				fm.cursor = 0
 			}
@@ -349,7 +348,7 @@ func (fm *Fm) Enter(program string) {
 				program = os.Getenv("EDITOR")
 			}
 
-			cmd := exec.Command(program, itemPath)
+			cmd := exec.Command(program, fm.items[fm.cursor].path)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			fm.message = cmd.Run()
@@ -366,12 +365,12 @@ func (fm *Fm) Refresh() {
 }
 
 func (fm *Fm) ToggleMark(index int) {
-	if fm.items[index].isMarked {
-		fm.items[index].isMarked = false
-		fm.markedCount--
+	item := &fm.items[index]
+
+	if _, ok := fm.marked[item.path]; ok {
+		delete(fm.marked, item.path)
 	} else {
-		fm.items[index].isMarked = true
-		fm.markedCount++
+		fm.marked[item.path] = struct{}{}
 	}
 }
 
@@ -493,40 +492,36 @@ func main() {
 		case 'D':
 			deleted := false
 
-			if fm.markedCount > 0 {
-				if fm.screen.Confirm("Delete " + strconv.Itoa(fm.markedCount) + " item(s)") {
+			if len(fm.marked) > 0 {
+				if fm.screen.Confirm("Delete " + strconv.Itoa(len(fm.marked)) + " item(s)") {
 					deleted = true
-					for _, item := range fm.items {
-						if item.isMarked {
-							fm.message = os.RemoveAll(filepath.Join(fm.path, item.name))
-							if fm.message != nil {
-								break
-							}
+					for item, _ := range fm.marked {
+						fm.message = os.RemoveAll(item)
+						if fm.message != nil {
+							break
 						}
 					}
 				}
 			} else if len(fm.items) > 0 {
-				item := fm.items[fm.cursor].name
-				if fm.screen.Confirm("Delete '" + item + "'") {
+				if fm.screen.Confirm("Delete '" + fm.items[fm.cursor].name + "'") {
 					deleted = true
-					fm.message = os.RemoveAll(filepath.Join(fm.path, item))
+					fm.message = os.RemoveAll(fm.items[fm.cursor].path)
 				}
 			}
 
 			if deleted {
 				fm.Refresh()
 				fm.cursor = min(fm.cursor, len(fm.items)-1)
-				fm.markedCount = 0
+				fm.marked = make(map[string]struct{})
 			}
 
 		case 'r':
 			if len(fm.items) > 0 {
-				initName := fm.items[fm.cursor].name
-				finalName, ok := fm.screen.Prompt("Rename: ", initName)
+				finalName, ok := fm.screen.Prompt("Rename: ", fm.items[fm.cursor].name)
 
 				if ok {
 					fm.message = os.Rename(
-						filepath.Join(fm.path, initName),
+						fm.items[fm.cursor].path,
 						filepath.Join(fm.path, finalName),
 					)
 				}
