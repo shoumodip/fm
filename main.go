@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -166,29 +165,42 @@ func (screen *Screen) Confirm(query string) bool {
 	}
 }
 
+type Item struct {
+	name  string
+	isDir bool
+}
+
 type Fm struct {
 	screen  Screen
 	message error
 
 	path   string
-	items  []fs.DirEntry
+	items  []Item
 	cursor int
 
 	searchQuery   string
 	searchReverse bool
 }
 
-func listDir(path string) ([]fs.DirEntry, error) {
-	items, err := os.ReadDir(path)
+func listDir(path string) ([]Item, error) {
+	entries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
 
+	items := make([]Item, len(entries))
+	for index, entry := range entries {
+		items[index] = Item{
+			name:  entry.Name(),
+			isDir: entry.IsDir(),
+		}
+	}
+
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].IsDir() != items[j].IsDir() {
-			return items[i].IsDir()
+		if items[i].isDir != items[j].isDir {
+			return items[i].isDir
 		} else {
-			return items[i].Name() < items[j].Name()
+			return items[i].name < items[j].name
 		}
 	})
 
@@ -230,11 +242,11 @@ func (fm *Fm) Render() {
 			fm.screen.Apply(STYLE_REVERSE)
 		}
 
-		if fm.items[i].IsDir() {
+		if fm.items[i].isDir {
 			fm.screen.Apply(STYLE_BOLD, COLOR_BLUE)
 		}
 
-		fmt.Fprint(fm.screen.output, fm.items[i].Name())
+		fmt.Fprint(fm.screen.output, fm.items[i].name)
 	}
 
 	fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_RED)
@@ -250,7 +262,7 @@ func (fm *Fm) Render() {
 
 func (fm *Fm) FindExact(pred string) {
 	for i, item := range fm.items {
-		if item.Name() == pred {
+		if item.name == pred {
 			fm.cursor = i
 			break
 		}
@@ -261,14 +273,14 @@ func (fm *Fm) FindQuery(pred string, from int) {
 	pred = strings.ToLower(pred)
 
 	for i := from + 1; i < len(fm.items); i++ {
-		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
 			return
 		}
 	}
 
 	for i := 0; i < from; i++ {
-		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
 			return
 		}
@@ -279,14 +291,14 @@ func (fm *Fm) FindQueryReverse(pred string, from int) {
 	pred = strings.ToLower(pred)
 
 	for i := from - 1; i >= 0; i-- {
-		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
 			return
 		}
 	}
 
 	for i := len(fm.items) - 1; i > from; i-- {
-		if strings.Contains(strings.ToLower(fm.items[i].Name()), pred) {
+		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
 			return
 		}
@@ -310,9 +322,9 @@ func (fm *Fm) Back() {
 
 func (fm *Fm) Enter(program string) {
 	if len(fm.items) > 0 {
-		itemPath := filepath.Join(fm.path, fm.items[fm.cursor].Name())
+		itemPath := filepath.Join(fm.path, fm.items[fm.cursor].name)
 
-		if fm.items[fm.cursor].IsDir() && len(program) == 0 {
+		if fm.items[fm.cursor].isDir && len(program) == 0 {
 			items, err := listDir(itemPath)
 
 			if err != nil {
@@ -449,7 +461,7 @@ func main() {
 
 		case 'D':
 			if len(fm.items) > 0 {
-				item := fm.items[fm.cursor].Name()
+				item := fm.items[fm.cursor].name
 				if fm.screen.Confirm("Delete '" + item + "'") {
 					fm.message = os.RemoveAll(filepath.Join(fm.path, item))
 
