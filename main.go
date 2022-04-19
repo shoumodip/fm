@@ -476,7 +476,7 @@ func main() {
 				}
 			}
 
-		case 'm':
+		case 'x':
 			if len(fm.items) > 0 {
 				fm.ToggleMark(fm.cursor)
 				if fm.cursor+1 < len(fm.items) {
@@ -484,7 +484,7 @@ func main() {
 				}
 			}
 
-		case 'M':
+		case 'X':
 			for index, _ := range fm.items {
 				fm.ToggleMark(index)
 			}
