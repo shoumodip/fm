@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -374,6 +375,23 @@ func (fm *Fm) ToggleMark(index int) {
 	}
 }
 
+func copyFile(srcpath, dstpath string) error {
+	src, err := os.Open(srcpath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+
+	dst, err := os.Create(dstpath)
+	if err != nil {
+		return err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, src)
+	return err
+}
+
 func main() {
 	initPath := "./"
 	if len(os.Args) > 1 {
@@ -513,6 +531,36 @@ func main() {
 				fm.Refresh()
 				fm.cursor = min(fm.cursor, len(fm.items)-1)
 				fm.marked = make(map[string]struct{})
+			}
+
+		case 'm':
+			if len(fm.marked) > 0 {
+				if fm.screen.Confirm("Move " + strconv.Itoa(len(fm.marked)) + " item(s)") {
+					for item, _ := range fm.marked {
+						fm.message = os.Rename(item, filepath.Join(fm.path, filepath.Base(item)))
+						if fm.message != nil {
+							break
+						}
+					}
+
+					fm.Refresh()
+					fm.marked = make(map[string]struct{})
+				}
+			}
+
+		case 'c':
+			if len(fm.marked) > 0 {
+				if fm.screen.Confirm("Copy " + strconv.Itoa(len(fm.marked)) + " item(s)") {
+					for item, _ := range fm.marked {
+						fm.message = copyFile(item, filepath.Join(fm.path, filepath.Base(item)))
+						if fm.message != nil {
+							break
+						}
+					}
+
+					fm.Refresh()
+					fm.marked = make(map[string]struct{})
+				}
 			}
 
 		case 'r':
