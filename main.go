@@ -109,12 +109,12 @@ func (screen *Screen) Apply(effects ...int) {
 	fmt.Fprint(screen.output, "m")
 }
 
-func (screen *Screen) Prompt(query string) (string, bool) {
+func (screen *Screen) Prompt(query string, init string) (string, bool) {
 	screen.ShowCursor()
 	defer screen.HideCursor()
 
 	screen.Bottom()
-	input := ""
+	input := init
 	for {
 		fmt.Fprint(screen.output, "\r\x1b[K")
 
@@ -398,13 +398,13 @@ func main() {
 			fm.Enter("")
 
 		case 'o':
-			query, ok := fm.screen.Prompt("Open: ")
+			query, ok := fm.screen.Prompt("Open: ", "")
 			if ok {
 				fm.Enter(query)
 			}
 
 		case '/':
-			query, ok := fm.screen.Prompt("/")
+			query, ok := fm.screen.Prompt("/", "")
 			if ok {
 				fm.searchQuery = query
 				fm.searchReverse = false
@@ -412,7 +412,7 @@ func main() {
 			}
 
 		case '?':
-			query, ok := fm.screen.Prompt("?")
+			query, ok := fm.screen.Prompt("?", "")
 			if ok {
 				fm.searchQuery = query
 				fm.searchReverse = true
@@ -438,7 +438,7 @@ func main() {
 			}
 
 		case 'd':
-			query, ok := fm.screen.Prompt("Create Dir: ")
+			query, ok := fm.screen.Prompt("Create Dir: ", "")
 			if ok {
 				fm.message = os.MkdirAll(filepath.Join(fm.path, query), 0750)
 
@@ -448,7 +448,7 @@ func main() {
 			}
 
 		case 'f':
-			query, ok := fm.screen.Prompt("Create File: ")
+			query, ok := fm.screen.Prompt("Create File: ", "")
 			if ok {
 				file, err := os.OpenFile(filepath.Join(fm.path, query), os.O_RDONLY|os.O_CREATE, 0644)
 				fm.message = err
@@ -471,6 +471,22 @@ func main() {
 
 					fm.Refresh()
 				}
+			}
+
+		case 'r':
+			if len(fm.items) > 0 {
+				initName := fm.items[fm.cursor].name
+				finalName, ok := fm.screen.Prompt("Rename: ", initName)
+
+				if ok {
+					fm.message = os.Rename(
+						filepath.Join(fm.path, initName),
+						filepath.Join(fm.path, finalName),
+					)
+				}
+
+				fm.Refresh()
+				fm.FindExact(finalName)
 			}
 		}
 

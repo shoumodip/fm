@@ -28,3 +28,4 @@ $ fm
 | <kbd>d</kbd> | Create a directory                              |
 | <kbd>f</kbd> | Create a file                                   |
 | <kbd>D</kbd> | Delete item under cursor                        |
+| <kbd>r</kbd> | Rename item under cursor                        |
