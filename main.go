@@ -90,9 +90,10 @@ const (
 	STYLE_BOLD    = 1
 	STYLE_REVERSE = 7
 
-	COLOR_RED  = 31
-	COLOR_BLUE = 34
-	COLOR_CYAN = 36
+	COLOR_RED     = 31
+	COLOR_BLUE    = 34
+	COLOR_MAGENTA = 35
+	COLOR_CYAN    = 36
 )
 
 func (screen *Screen) Apply(effects ...int) {
@@ -166,17 +167,19 @@ func (screen *Screen) Confirm(query string) bool {
 }
 
 type Item struct {
-	name  string
-	isDir bool
+	name     string
+	isDir    bool
+	isMarked bool
 }
 
 type Fm struct {
 	screen  Screen
 	message error
 
-	path   string
-	items  []Item
-	cursor int
+	path        string
+	items       []Item
+	cursor      int
+	markedCount int
 
 	searchQuery   string
 	searchReverse bool
@@ -247,6 +250,11 @@ func (fm *Fm) Render() {
 		}
 
 		fmt.Fprint(fm.screen.output, fm.items[i].name)
+
+		if fm.items[i].isMarked {
+			fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_MAGENTA)
+			fmt.Fprint(fm.screen.output, "*")
+		}
 	}
 
 	fm.screen.Apply(STYLE_NONE, STYLE_BOLD, COLOR_RED)
@@ -357,6 +365,16 @@ func (fm *Fm) Refresh() {
 	fm.items = items
 }
 
+func (fm *Fm) ToggleMark(index int) {
+	if fm.items[index].isMarked {
+		fm.items[index].isMarked = false
+		fm.markedCount--
+	} else {
+		fm.items[index].isMarked = true
+		fm.markedCount++
+	}
+}
+
 func main() {
 	initPath := "./"
 	if len(os.Args) > 1 {
@@ -459,18 +477,46 @@ func main() {
 				}
 			}
 
-		case 'D':
+		case 'm':
 			if len(fm.items) > 0 {
+				fm.ToggleMark(fm.cursor)
+				if fm.cursor+1 < len(fm.items) {
+					fm.cursor++
+				}
+			}
+
+		case 'M':
+			for index, _ := range fm.items {
+				fm.ToggleMark(index)
+			}
+
+		case 'D':
+			deleted := false
+
+			if fm.markedCount > 0 {
+				if fm.screen.Confirm("Delete " + strconv.Itoa(fm.markedCount) + " item(s)") {
+					deleted = true
+					for _, item := range fm.items {
+						if item.isMarked {
+							fm.message = os.RemoveAll(filepath.Join(fm.path, item.name))
+							if fm.message != nil {
+								break
+							}
+						}
+					}
+				}
+			} else if len(fm.items) > 0 {
 				item := fm.items[fm.cursor].name
 				if fm.screen.Confirm("Delete '" + item + "'") {
+					deleted = true
 					fm.message = os.RemoveAll(filepath.Join(fm.path, item))
-
-					if fm.cursor == len(fm.items)-1 {
-						fm.cursor--
-					}
-
-					fm.Refresh()
 				}
+			}
+
+			if deleted {
+				fm.Refresh()
+				fm.cursor = min(fm.cursor, len(fm.items)-1)
+				fm.markedCount = 0
 			}
 
 		case 'r':

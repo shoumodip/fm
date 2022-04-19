@@ -29,3 +29,5 @@ $ fm
 | <kbd>f</kbd> | Create a file                                   |
 | <kbd>D</kbd> | Delete item under cursor                        |
 | <kbd>r</kbd> | Rename item under cursor                        |
+| <kbd>m</kbd> | Mark item under cursor                          |
+| <kbd>M</kbd> | Toggle marks in the current directory           |
