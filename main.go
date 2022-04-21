@@ -68,16 +68,15 @@ func (screen *Screen) ShowCursor() {
 }
 
 func (screen *Screen) Clear() {
-	fmt.Fprint(screen.output, "\x1b[2J\x1b[H")
+	fmt.Fprint(screen.output, "\x1b[2J\x1b[H\x1b[3J")
 }
 
 func (screen *Screen) Reset() {
+	term.Restore(0, screen.orig)
 	screen.Clear()
 	screen.ShowCursor()
 	screen.Apply(STYLE_NONE)
 	screen.output.Flush()
-
-	term.Restore(0, screen.orig)
 }
 
 func (screen *Screen) Input() byte {
