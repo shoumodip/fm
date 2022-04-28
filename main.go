@@ -502,7 +502,7 @@ func main() {
 			}
 
 		case 'X':
-			for index, _ := range fm.items {
+			for index := range fm.items {
 				fm.ToggleMark(index)
 			}
 
@@ -512,7 +512,7 @@ func main() {
 			if len(fm.marked) > 0 {
 				if fm.screen.Confirm("Delete " + strconv.Itoa(len(fm.marked)) + " item(s)") {
 					deleted = true
-					for item, _ := range fm.marked {
+					for item := range fm.marked {
 						fm.message = os.RemoveAll(item)
 						if fm.message != nil {
 							break
@@ -535,7 +535,7 @@ func main() {
 		case 'm':
 			if len(fm.marked) > 0 {
 				if fm.screen.Confirm("Move " + strconv.Itoa(len(fm.marked)) + " item(s)") {
-					for item, _ := range fm.marked {
+					for item := range fm.marked {
 						fm.message = os.Rename(item, filepath.Join(fm.path, filepath.Base(item)))
 						if fm.message != nil {
 							break
@@ -550,7 +550,7 @@ func main() {
 		case 'c':
 			if len(fm.marked) > 0 {
 				if fm.screen.Confirm("Copy " + strconv.Itoa(len(fm.marked)) + " item(s)") {
-					for item, _ := range fm.marked {
+					for item := range fm.marked {
 						fm.message = copyFile(item, filepath.Join(fm.path, filepath.Base(item)))
 						if fm.message != nil {
 							break
