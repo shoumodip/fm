@@ -3,6 +3,7 @@ module github.com/shoumodip/fm
 go 1.17
 
 require (
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
-	golang.org/x/term v0.0.0-20220411215600-e5f449aeb171 // indirect
+	github.com/shoumodip/screen-go v0.0.0-20230218094404-e231e32f7ed1 // indirect
+	golang.org/x/sys v0.5.0 // indirect
+	golang.org/x/term v0.5.0 // indirect
 )
