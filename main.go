@@ -34,39 +34,6 @@ func gotoBottom(s *screen.Screen) {
 	s.MoveCursor(0, s.Height-1)
 }
 
-func showPrompt(s *screen.Screen, query string, init string) (string, bool) {
-	s.ShowCursor()
-	defer s.HideCursor()
-
-	gotoBottom(s)
-	input := init
-	for {
-		fmt.Fprint(s, "\r\x1b[K")
-
-		s.Apply(screen.STYLE_NONE, screen.STYLE_BOLD, screen.COLOR_BLUE)
-		fmt.Fprint(s, query)
-
-		s.Apply(screen.STYLE_NONE)
-		fmt.Fprint(s, input)
-
-		s.Flush()
-
-		ch, err := s.Input()
-		handleError(err)
-		if ch == byte(27) {
-			return "", false
-		} else if ch == byte(13) {
-			return input, true
-		} else if ch == byte(0x7F) {
-			if len(input) > 0 {
-				input = input[:len(input)-1]
-			}
-		} else if strconv.IsPrint(rune(ch)) {
-			input = input + string(ch)
-		}
-	}
-}
-
 func confirmPrompt(s *screen.Screen, query string) bool {
 	query = query + " (y/n): "
 
@@ -198,6 +165,49 @@ func (fm *Fm) Render() {
 	fm.screen.Flush()
 }
 
+func (fm *Fm) ShowPrompt(query string, init string, update func(string) bool) (string, bool) {
+	fm.screen.ShowCursor()
+	defer fm.screen.HideCursor()
+
+	input := init
+	color := screen.STYLE_NONE
+	for {
+		gotoBottom(fm.screen)
+		fmt.Fprint(fm.screen, "\r\x1b[K")
+
+		fm.screen.Apply(screen.STYLE_NONE, screen.STYLE_BOLD, screen.COLOR_BLUE)
+		fmt.Fprint(fm.screen, query)
+
+		fm.screen.Apply(color)
+		fmt.Fprint(fm.screen, input)
+
+		fm.screen.Flush()
+
+		ch, err := fm.screen.Input()
+		handleError(err)
+		if ch == byte(27) {
+			return "", false
+		} else if ch == byte(13) {
+			return input, true
+		} else if ch == byte(0x7F) {
+			if len(input) > 0 {
+				input = input[:len(input)-1]
+			}
+		} else if strconv.IsPrint(rune(ch)) {
+			input = input + string(ch)
+		}
+
+		if update != nil {
+			if update(input) {
+				color = screen.STYLE_NONE
+			} else {
+				color = screen.COLOR_RED
+			}
+			fm.Render()
+		}
+	}
+}
+
 func (fm *Fm) FindExact(pred string) {
 	for i, item := range fm.items {
 		if item.name == pred {
@@ -207,40 +217,50 @@ func (fm *Fm) FindExact(pred string) {
 	}
 }
 
-func (fm *Fm) FindQuery(pred string, from int) {
+func (fm *Fm) FindQuery(pred string, from int) bool {
+	if pred == "" {
+		return false
+	}
 	pred = strings.ToLower(pred)
 
 	for i := from + 1; i < len(fm.items); i++ {
 		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
-			return
+			return true
 		}
 	}
 
 	for i := 0; i < from; i++ {
 		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
-			return
+			return true
 		}
 	}
+
+	return false
 }
 
-func (fm *Fm) FindQueryReverse(pred string, from int) {
+func (fm *Fm) FindQueryReverse(pred string, from int) bool {
+	if pred == "" {
+		return false
+	}
 	pred = strings.ToLower(pred)
 
 	for i := from - 1; i >= 0; i-- {
 		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
-			return
+			return true
 		}
 	}
 
 	for i := len(fm.items) - 1; i > from; i-- {
 		if strings.Contains(strings.ToLower(fm.items[i].name), pred) {
 			fm.cursor = i
-			return
+			return true
 		}
 	}
+
+	return false
 }
 
 func (fm *Fm) Back() {
@@ -378,25 +398,35 @@ func main() {
 			fm.Enter(os.Getenv("EDITOR"))
 
 		case 'o':
-			query, ok := showPrompt(fm.screen, "Open: ", "")
+			query, ok := fm.ShowPrompt("Open: ", "", nil)
 			if ok {
 				fm.Enter(query)
 			}
 
 		case '/':
-			query, ok := showPrompt(fm.screen, "/", "")
-			if ok {
+			cursor := fm.cursor
+			_, ok := fm.ShowPrompt("/", "", func(query string) bool {
+				fm.cursor = cursor
 				fm.searchQuery = query
 				fm.searchReverse = false
-				fm.FindQuery(query, fm.cursor)
+				return fm.FindQuery(query, cursor)
+			})
+
+			if !ok {
+				fm.cursor = cursor
 			}
 
 		case '?':
-			query, ok := showPrompt(fm.screen, "?", "")
-			if ok {
+			cursor := fm.cursor
+			_, ok := fm.ShowPrompt("?", "", func(query string) bool {
+				fm.cursor = cursor
 				fm.searchQuery = query
 				fm.searchReverse = true
-				fm.FindQueryReverse(query, fm.cursor)
+				return fm.FindQueryReverse(query, fm.cursor)
+			})
+
+			if !ok {
+				fm.cursor = cursor
 			}
 
 		case 'n':
@@ -418,7 +448,7 @@ func main() {
 			}
 
 		case 'd':
-			query, ok := showPrompt(fm.screen, "Create Dir: ", "")
+			query, ok := fm.ShowPrompt("Create Dir: ", "", nil)
 			if ok {
 				fm.message = os.MkdirAll(filepath.Join(fm.path, query), 0750)
 
@@ -428,7 +458,7 @@ func main() {
 			}
 
 		case 'f':
-			query, ok := showPrompt(fm.screen, "Create File: ", "")
+			query, ok := fm.ShowPrompt("Create File: ", "", nil)
 			if ok {
 				file, err := os.OpenFile(filepath.Join(fm.path, query), os.O_RDONLY|os.O_CREATE, 0644)
 				fm.message = err
@@ -510,7 +540,7 @@ func main() {
 
 		case 'r':
 			if len(fm.items) > 0 {
-				finalName, ok := showPrompt(fm.screen, "Rename: ", fm.items[fm.cursor].name)
+				finalName, ok := fm.ShowPrompt("Rename: ", fm.items[fm.cursor].name, nil)
 
 				if ok {
 					fm.message = os.Rename(
