@@ -388,10 +388,10 @@ func main() {
 				fm.cursor = len(fm.items) - 1
 			}
 
-		case 'h':
+		case 'h', byte(0x7F):
 			fm.Back()
 
-		case 'l':
+		case 'l', byte(13):
 			fm.Enter("")
 
 		case 'e':
