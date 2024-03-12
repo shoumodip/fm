@@ -20,6 +20,7 @@ $ fm
 | <kbd>G</kbd> | Move the cursor to the bottom                        |
 | <kbd>h</kbd> | Enter Parent Directory                               |
 | <kbd>l</kbd> | Enter item under the cursor                          |
+| <kbd>e</kbd> | Open item under the cursor with `$EDITOR`            |
 | <kbd>o</kbd> | Open item under the cursor with arbitrary program    |
 | <kbd>/</kbd> | Search for items                                     |
 | <kbd>?</kbd> | Search for items backwards                           |

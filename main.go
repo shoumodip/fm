@@ -1,15 +1,18 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"github.com/shoumodip/screen-go"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/shoumodip/screen-go"
 )
 
 func min(a, b int) int {
@@ -268,11 +271,18 @@ func (fm *Fm) Enter(program string) {
 				fm.cursor = 0
 			}
 		} else {
-			fm.screen.Reset()
-
 			if len(program) == 0 {
-				program = os.Getenv("EDITOR")
+				switch runtime.GOOS {
+				case "linux":
+					program = "xdg-open"
+				case "darwin":
+					program = "open"
+				default:
+					fm.message = errors.New("unsupported platform")
+					return
+				}
 			}
+			fm.screen.Reset()
 
 			cmd := exec.Command(program, fm.items[fm.cursor].path)
 			cmd.Stdin = os.Stdin
@@ -363,6 +373,9 @@ func main() {
 
 		case 'l':
 			fm.Enter("")
+
+		case 'e':
+			fm.Enter(os.Getenv("EDITOR"))
 
 		case 'o':
 			query, ok := showPrompt(fm.screen, "Open: ", "")
