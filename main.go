@@ -454,6 +454,7 @@ func main() {
 
 				if fm.message == nil {
 					fm.Refresh()
+					fm.FindQuery(query, fm.cursor)
 				}
 			}
 
@@ -466,6 +467,7 @@ func main() {
 				if fm.message == nil {
 					file.Close()
 					fm.Refresh()
+					fm.FindQuery(query, fm.cursor)
 				}
 			}
 
