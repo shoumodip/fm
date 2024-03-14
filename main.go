@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -352,13 +353,17 @@ func copyFile(srcpath, dstpath string) error {
 }
 
 func main() {
-	initPath := "./"
-	if len(os.Args) > 1 {
-		initPath = os.Args[1]
-	}
+	initPath := flag.String("init-path", "./", "The path to start the application in")
+	lastPath := flag.String("last-path", "", "The path of the file to output the last directory location into")
+	flag.Parse()
 
-	fm := fmInit(initPath)
-	defer fm.screen.Reset()
+	fm := fmInit(*initPath)
+	defer func() {
+		fm.screen.Reset()
+		if *lastPath != "" {
+			handleError(os.WriteFile(*lastPath, []byte(fm.path), 0644))
+		}
+	}()
 
 	fm.screen.HideCursor()
 	fm.screen.Flush()
