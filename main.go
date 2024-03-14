@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/shoumodip/screen-go"
+	gc "github.com/rthornton128/goncurses"
 )
 
 func min(a, b int) int {
@@ -31,52 +31,10 @@ func handleError(err error) {
 	}
 }
 
-func gotoBottom(s *screen.Screen) {
-	s.MoveCursor(0, s.Height-1)
-}
-
-func confirmPrompt(s *screen.Screen, query string) bool {
-	query = query + " (y/n): "
-
-	s.ShowCursor()
-	defer s.HideCursor()
-
-	gotoBottom(s)
-	for {
-		fmt.Fprint(s, "\r\x1b[K")
-
-		s.Apply(screen.STYLE_NONE, screen.STYLE_BOLD, screen.COLOR_BLUE)
-		fmt.Fprint(s, query)
-
-		s.Flush()
-
-		ch, err := s.Input()
-		handleError(err)
-		if ch == byte(27) || ch == 'n' || ch == 'N' {
-			return false
-		} else if ch == 'y' || ch == 'Y' {
-			return true
-		}
-	}
-}
-
 type Item struct {
 	name  string
 	path  string
 	isDir bool
-}
-
-type Fm struct {
-	screen  *screen.Screen
-	message error
-
-	path   string
-	items  []Item
-	cursor int
-	marked map[string]struct{}
-
-	searchQuery   string
-	searchReverse bool
 }
 
 func listDir(path string) ([]Item, error) {
@@ -105,6 +63,47 @@ func listDir(path string) ([]Item, error) {
 	return items, nil
 }
 
+type Fm struct {
+	window  *gc.Window
+	message error
+
+	path   string
+	items  []Item
+	cursor int
+	marked map[string]struct{}
+
+	searchQuery   string
+	searchReverse bool
+}
+
+const (
+	COLOR_DIR = iota + 1
+	COLOR_MARK
+	COLOR_ERROR
+	COLOR_TITLE
+)
+
+func windowInit() *gc.Window {
+	window, err := gc.Init()
+	handleError(err)
+
+	gc.Raw(true)
+	gc.Echo(false)
+	gc.Cursor(0)
+	gc.SetEscDelay(0)
+	window.Keypad(true)
+
+	gc.StartColor()
+	gc.UseDefaultColors()
+
+	gc.InitPair(COLOR_DIR, gc.C_BLUE, -1)
+	gc.InitPair(COLOR_MARK, gc.C_MAGENTA, -1)
+	gc.InitPair(COLOR_ERROR, gc.C_RED, -1)
+	gc.InitPair(COLOR_TITLE, gc.C_CYAN, -1)
+
+	return window
+}
+
 func fmInit(path string) Fm {
 	path, err := filepath.Abs(path)
 	handleError(err)
@@ -112,11 +111,8 @@ func fmInit(path string) Fm {
 	items, err := listDir(path)
 	handleError(err)
 
-	screen, err := screen.New()
-	handleError(err)
-
 	fm := Fm{
-		screen: &screen,
+		window: windowInit(),
 		path:   path,
 		items:  items,
 		marked: make(map[string]struct{}),
@@ -127,83 +123,135 @@ func fmInit(path string) Fm {
 }
 
 func (fm *Fm) Render() {
-	fm.screen.Clear()
+	fm.window.Erase()
 
-	fm.screen.Apply(screen.STYLE_NONE, screen.STYLE_BOLD, screen.COLOR_CYAN)
-	fmt.Fprint(fm.screen, fm.path)
+	fm.window.AttrOn(gc.A_BOLD)
+	fm.window.ColorOn(COLOR_TITLE)
+	fm.window.Print(fm.path)
+	fm.window.AttrOff(gc.A_BOLD)
+	fm.window.ColorOff(COLOR_TITLE)
 
-	start := fm.cursor - fm.cursor%(fm.screen.Height-2)
-	last := min(len(fm.items), fm.screen.Height-2+start)
+	height, _ := fm.window.MaxYX()
 
+	start := fm.cursor - fm.cursor%(height-2)
+	last := min(len(fm.items), height-2+start)
+
+	line := 1
 	for i := start; i < last; i++ {
-		fm.screen.Apply(screen.STYLE_NONE)
-		fmt.Fprint(fm.screen, "\r\n")
-
 		if i == fm.cursor {
-			fm.screen.Apply(screen.STYLE_REVERSE)
+			fm.window.AttrOn(gc.A_REVERSE)
 		}
 
 		if fm.items[i].isDir {
-			fm.screen.Apply(screen.STYLE_BOLD, screen.COLOR_BLUE)
+			fm.window.ColorOn(COLOR_DIR)
 		}
 
-		fmt.Fprint(fm.screen, fm.items[i].name)
+		fm.window.MovePrint(line, 0, fm.items[i].name)
+		line++
+
+		if i == fm.cursor {
+			fm.window.AttrOff(gc.A_REVERSE)
+		}
+
+		if fm.items[i].isDir {
+			fm.window.ColorOff(COLOR_DIR)
+		}
 
 		if _, ok := fm.marked[fm.items[i].path]; ok {
-			fm.screen.Apply(screen.STYLE_NONE, screen.STYLE_BOLD, screen.COLOR_MAGENTA)
-			fmt.Fprint(fm.screen, "*")
+			fm.window.AttrOn(gc.A_BOLD)
+			fm.window.ColorOn(COLOR_MARK)
+			fm.window.Print("*")
+			fm.window.AttrOff(gc.A_BOLD)
+			fm.window.ColorOff(COLOR_MARK)
 		}
 	}
 
-	fm.screen.Apply(screen.STYLE_NONE, screen.STYLE_BOLD, screen.COLOR_RED)
-
 	if fm.message != nil {
-		gotoBottom(fm.screen)
-		fmt.Fprint(fm.screen, fm.message)
+		fm.window.AttrOn(gc.A_BOLD)
+		fm.window.ColorOn(COLOR_ERROR)
+		fm.window.MovePrint(height-1, 0, fm.message)
+		fm.window.AttrOn(gc.A_BOLD)
+		fm.window.ColorOn(COLOR_ERROR)
+
 		fm.message = nil
 	}
 
-	fm.screen.Flush()
+	fm.window.Refresh()
 }
 
-func (fm *Fm) ShowPrompt(query string, init string, update func(string) bool) (string, bool) {
-	fm.screen.ShowCursor()
-	defer fm.screen.HideCursor()
+func (fm *Fm) Confirm(query string) bool {
+	query = query + " (y/n): "
+
+	gc.Cursor(1)
+	defer gc.Cursor(0)
+
+	for {
+		height, _ := fm.window.MaxYX()
+
+		fm.window.AttrOn(gc.A_BOLD)
+		fm.window.ColorOn(COLOR_DIR)
+		fm.window.MovePrint(height-1, 0, query)
+		fm.window.AttrOff(gc.A_BOLD)
+		fm.window.ColorOff(COLOR_DIR)
+		fm.window.ClearToEOL()
+
+		fm.window.Refresh()
+
+		ch := fm.window.GetChar()
+		if ch == 27 || ch == 'n' || ch == 'N' {
+			return false
+		} else if ch == 'y' || ch == 'Y' {
+			return true
+		}
+	}
+}
+
+func (fm *Fm) Prompt(query string, init string, update func(string) bool) (string, bool) {
+	gc.Cursor(1)
+	defer gc.Cursor(0)
 
 	input := init
-	color := screen.STYLE_NONE
+	error := false
+
 	for {
-		gotoBottom(fm.screen)
-		fmt.Fprint(fm.screen, "\r\x1b[K")
+		height, _ := fm.window.MaxYX()
 
-		fm.screen.Apply(screen.STYLE_NONE, screen.STYLE_BOLD, screen.COLOR_BLUE)
-		fmt.Fprint(fm.screen, query)
+		fm.window.AttrOn(gc.A_BOLD)
+		fm.window.ColorOn(COLOR_DIR)
+		fm.window.MovePrint(height-1, 0, query)
+		fm.window.AttrOff(gc.A_BOLD)
+		fm.window.ColorOff(COLOR_DIR)
+		fm.window.ClearToEOL()
 
-		fm.screen.Apply(color)
-		fmt.Fprint(fm.screen, input)
+		if error {
+			fm.window.AttrOn(gc.A_BOLD | gc.A_REVERSE)
+			fm.window.ColorOn(COLOR_ERROR)
+		}
 
-		fm.screen.Flush()
+		fm.window.Print(input)
 
-		ch, err := fm.screen.Input()
-		handleError(err)
-		if ch == byte(27) {
+		if error {
+			fm.window.AttrOff(gc.A_BOLD | gc.A_REVERSE)
+			fm.window.ColorOff(COLOR_ERROR)
+		}
+
+		fm.window.Refresh()
+
+		ch := fm.window.GetChar()
+		if ch == 27 {
 			return "", false
-		} else if ch == byte(13) {
+		} else if ch == gc.KEY_RETURN {
 			return input, true
-		} else if ch == byte(0x7F) {
+		} else if ch == gc.KEY_BACKSPACE {
 			if len(input) > 0 {
 				input = input[:len(input)-1]
 			}
 		} else if strconv.IsPrint(rune(ch)) {
-			input = input + string(ch)
+			input = input + string(byte(ch))
 		}
 
 		if update != nil {
-			if update(input) {
-				color = screen.STYLE_NONE
-			} else {
-				color = screen.COLOR_RED
-			}
+			error = !update(input)
 			fm.Render()
 		}
 	}
@@ -238,6 +286,11 @@ func (fm *Fm) FindQuery(pred string, from int) bool {
 		}
 	}
 
+	if strings.Contains(strings.ToLower(fm.items[from].name), pred) {
+		fm.cursor = from
+		return true
+	}
+
 	return false
 }
 
@@ -259,6 +312,11 @@ func (fm *Fm) FindQueryReverse(pred string, from int) bool {
 			fm.cursor = i
 			return true
 		}
+	}
+
+	if strings.Contains(strings.ToLower(fm.items[from].name), pred) {
+		fm.cursor = from
+		return true
 	}
 
 	return false
@@ -303,18 +361,14 @@ func (fm *Fm) Enter(program string) {
 					return
 				}
 			}
-			fm.screen.Reset()
+			gc.End()
 
 			cmd := exec.Command(program, fm.items[fm.cursor].path)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			fm.message = cmd.Run()
 
-			screen, err := screen.New()
-			handleError(err)
-
-			screen.HideCursor()
-			fm.screen = &screen
+			fm.window = windowInit()
 		}
 	}
 }
@@ -359,17 +413,14 @@ func main() {
 
 	fm := fmInit(*initPath)
 	defer func() {
-		fm.screen.Reset()
+		gc.End()
 		if *lastPath != "" {
 			handleError(os.WriteFile(*lastPath, []byte(fm.path), 0644))
 		}
 	}()
 
-	fm.screen.HideCursor()
-	fm.screen.Flush()
 	for {
-		ch, err := fm.screen.Input()
-		handleError(err)
+		ch := fm.window.GetChar()
 
 		switch ch {
 		case 'q':
@@ -393,24 +444,24 @@ func main() {
 				fm.cursor = len(fm.items) - 1
 			}
 
-		case 'h', byte(0x7F):
+		case 'h', gc.KEY_BACKSPACE:
 			fm.Back()
 
-		case 'l', byte(13):
+		case 'l', gc.KEY_RETURN:
 			fm.Enter("")
 
 		case 'e':
 			fm.Enter(os.Getenv("EDITOR"))
 
 		case 'o':
-			query, ok := fm.ShowPrompt("Open: ", "", nil)
+			query, ok := fm.Prompt("Open: ", "", nil)
 			if ok {
 				fm.Enter(query)
 			}
 
 		case '/':
 			cursor := fm.cursor
-			_, ok := fm.ShowPrompt("/", "", func(query string) bool {
+			_, ok := fm.Prompt("/", "", func(query string) bool {
 				fm.cursor = cursor
 				fm.searchQuery = query
 				fm.searchReverse = false
@@ -423,7 +474,7 @@ func main() {
 
 		case '?':
 			cursor := fm.cursor
-			_, ok := fm.ShowPrompt("?", "", func(query string) bool {
+			_, ok := fm.Prompt("?", "", func(query string) bool {
 				fm.cursor = cursor
 				fm.searchQuery = query
 				fm.searchReverse = true
@@ -453,18 +504,18 @@ func main() {
 			}
 
 		case 'd':
-			query, ok := fm.ShowPrompt("Create Dir: ", "", nil)
+			query, ok := fm.Prompt("Create Dir: ", "", nil)
 			if ok {
 				fm.message = os.MkdirAll(filepath.Join(fm.path, query), 0750)
 
 				if fm.message == nil {
 					fm.Refresh()
-					fm.FindQuery(query, fm.cursor)
+					fm.FindExact(query)
 				}
 			}
 
 		case 'f':
-			query, ok := fm.ShowPrompt("Create File: ", "", nil)
+			query, ok := fm.Prompt("Create File: ", "", nil)
 			if ok {
 				file, err := os.OpenFile(filepath.Join(fm.path, query), os.O_RDONLY|os.O_CREATE, 0644)
 				fm.message = err
@@ -472,7 +523,7 @@ func main() {
 				if fm.message == nil {
 					file.Close()
 					fm.Refresh()
-					fm.FindQuery(query, fm.cursor)
+					fm.FindExact(query)
 				}
 			}
 
@@ -493,7 +544,7 @@ func main() {
 			deleted := false
 
 			if len(fm.marked) > 0 {
-				if confirmPrompt(fm.screen, "Delete "+strconv.Itoa(len(fm.marked))+" item(s)") {
+				if fm.Confirm("Delete " + strconv.Itoa(len(fm.marked)) + " item(s)") {
 					deleted = true
 					for item := range fm.marked {
 						fm.message = os.RemoveAll(item)
@@ -503,7 +554,7 @@ func main() {
 					}
 				}
 			} else if len(fm.items) > 0 {
-				if confirmPrompt(fm.screen, "Delete '"+fm.items[fm.cursor].name+"'") {
+				if fm.Confirm("Delete '" + fm.items[fm.cursor].name + "'") {
 					deleted = true
 					fm.message = os.RemoveAll(fm.items[fm.cursor].path)
 				}
@@ -517,7 +568,7 @@ func main() {
 
 		case 'm':
 			if len(fm.marked) > 0 {
-				if confirmPrompt(fm.screen, "Move "+strconv.Itoa(len(fm.marked))+" item(s)") {
+				if fm.Confirm("Move " + strconv.Itoa(len(fm.marked)) + " item(s)") {
 					for item := range fm.marked {
 						fm.message = os.Rename(item, filepath.Join(fm.path, filepath.Base(item)))
 						if fm.message != nil {
@@ -532,7 +583,7 @@ func main() {
 
 		case 'c':
 			if len(fm.marked) > 0 {
-				if confirmPrompt(fm.screen, "Copy "+strconv.Itoa(len(fm.marked))+" item(s)") {
+				if fm.Confirm("Copy " + strconv.Itoa(len(fm.marked)) + " item(s)") {
 					for item := range fm.marked {
 						fm.message = copyFile(item, filepath.Join(fm.path, filepath.Base(item)))
 						if fm.message != nil {
@@ -547,7 +598,7 @@ func main() {
 
 		case 'r':
 			if len(fm.items) > 0 {
-				finalName, ok := fm.ShowPrompt("Rename: ", fm.items[fm.cursor].name, nil)
+				finalName, ok := fm.Prompt("Rename: ", fm.items[fm.cursor].name, nil)
 
 				if ok {
 					fm.message = os.Rename(
