@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	gc "github.com/rthornton128/goncurses"
+	gc "github.com/vit1251/go-ncursesw"
 )
 
 func min(a, b int) int {

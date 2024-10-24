@@ -1,2 +1,2 @@
-github.com/rthornton128/goncurses v0.0.0-20231014161942-82671379df88 h1:bNvZ7P4l4rvg1O3qNDRJ4FNgKASMoG+V7OIpu4SIkgA=
-github.com/rthornton128/goncurses v0.0.0-20231014161942-82671379df88/go.mod h1:AHlKFomPTwmO7H2vL8d7VNrQNQmhMi/DBhDnHRhjbCo=
+github.com/vit1251/go-ncursesw v0.0.0-20211216195139-e61a3c4242a5 h1:38QNnaytR3Mhq0YO05IBNMImfFYQB2Tk5Ct/V1MWOwI=
+github.com/vit1251/go-ncursesw v0.0.0-20211216195139-e61a3c4242a5/go.mod h1:gTXTX4x80o63QC2qsY+NdlLgj+eiWKMwsY2YMZe6e44=
