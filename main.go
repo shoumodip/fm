@@ -67,10 +67,11 @@ type Fm struct {
 	window  *gc.Window
 	message error
 
-	path   string
-	items  []Item
-	cursor int
-	marked map[string]struct{}
+	path    string
+	items   []Item
+	cursor  int
+	marked  map[string]struct{}
+	history map[string]string
 
 	searchQuery   string
 	searchReverse bool
@@ -112,10 +113,11 @@ func fmInit(path string) Fm {
 	handleError(err)
 
 	fm := Fm{
-		window: windowInit(),
-		path:   path,
-		items:  items,
-		marked: make(map[string]struct{}),
+		window:  windowInit(),
+		path:    path,
+		items:   items,
+		marked:  make(map[string]struct{}),
+		history: make(map[string]string),
 	}
 
 	fm.Render()
@@ -322,6 +324,16 @@ func (fm *Fm) FindQueryReverse(pred string, from int) bool {
 	return false
 }
 
+func (fm *Fm) HistorySave() {
+	fm.history[fm.path] = fm.items[fm.cursor].name
+}
+
+func (fm *Fm) HistoryRestore() {
+	if save, ok := fm.history[fm.path]; ok {
+		fm.FindExact(save)
+	}
+}
+
 func (fm *Fm) Back() {
 	if fm.path != "/" {
 		newPath := filepath.Dir(fm.path)
@@ -330,6 +342,7 @@ func (fm *Fm) Back() {
 		if err != nil {
 			fm.message = err
 		} else {
+			fm.HistorySave()
 			fm.items = items
 			fm.FindExact(filepath.Base(fm.path))
 			fm.path = newPath
@@ -341,13 +354,14 @@ func (fm *Fm) Enter(program string) {
 	if len(fm.items) > 0 {
 		if fm.items[fm.cursor].isDir && len(program) == 0 {
 			items, err := listDir(fm.items[fm.cursor].path)
-
 			if err != nil {
 				fm.message = err
 			} else {
+				fm.HistorySave()
 				fm.path = fm.items[fm.cursor].path
 				fm.items = items
 				fm.cursor = 0
+				fm.HistoryRestore()
 			}
 		} else {
 			if len(program) == 0 {
