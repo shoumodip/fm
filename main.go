@@ -69,7 +69,9 @@ type Fm struct {
 	window  *gc.Window
 	message error
 
-	path    string
+	path     string
+	pathPrev string
+
 	items   []Item
 	cursor  int
 	anchor  int
@@ -347,6 +349,30 @@ func (fm *Fm) HistoryRestore() {
 	}
 }
 
+func (fm *Fm) BeginSwitchDir(path string, items []Item) {
+	fm.HistorySave()
+	fm.pathPrev = fm.path
+	fm.path = path
+	fm.items = items
+	fm.cursor = 0
+}
+
+func (fm *Fm) PrevDir() {
+	if fm.pathPrev == "" {
+		fm.message = errors.New("no previous directory to switch to")
+		return
+	}
+
+	items, err := listDir(fm.pathPrev)
+	if err != nil {
+		fm.message = err
+		return
+	}
+
+	fm.BeginSwitchDir(fm.pathPrev, items)
+	fm.HistoryRestore()
+}
+
 func (fm *Fm) Home() {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
@@ -360,10 +386,7 @@ func (fm *Fm) Home() {
 		return
 	}
 
-	fm.HistorySave()
-	fm.path = homePath
-	fm.items = items
-	fm.cursor = 0
+	fm.BeginSwitchDir(homePath, items)
 	fm.HistoryRestore()
 }
 
@@ -375,10 +398,8 @@ func (fm *Fm) Back() {
 		if err != nil {
 			fm.message = err
 		} else {
-			fm.HistorySave()
-			fm.items = items
-			fm.FindExact(filepath.Base(fm.path))
-			fm.path = newPath
+			fm.BeginSwitchDir(newPath, items)
+			fm.FindExact(filepath.Base(fm.pathPrev))
 		}
 	}
 }
@@ -390,10 +411,7 @@ func (fm *Fm) Enter(program string) {
 			if err != nil {
 				fm.message = err
 			} else {
-				fm.HistorySave()
-				fm.path = fm.items[fm.cursor].path
-				fm.items = items
-				fm.cursor = 0
+				fm.BeginSwitchDir(fm.items[fm.cursor].path, items)
 				fm.HistoryRestore()
 			}
 		} else {
@@ -530,6 +548,9 @@ func main() {
 
 		case '~':
 			fm.Home()
+
+		case '-':
+			fm.PrevDir()
 
 		case 'o':
 			query, ok := fm.Prompt("Open: ", "", nil)

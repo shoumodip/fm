@@ -37,6 +37,7 @@ $ fm
 | <kbd>c</kbd> | Copy marked items into the current directory         |
 | <kbd>r</kbd> | Rename item under the cursor                         |
 | <kbd>~</kbd> | Goto `$HOME`                                         |
+| <kbd>-</kbd> | Goto the previous active directory                   |
 
 ## Use Fm to Change Directory
 ```sh
