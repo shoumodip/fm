@@ -16,6 +16,8 @@ import (
 	gc "github.com/vit1251/go-ncursesw"
 )
 
+const BRACE_MOVE_COUNT = 10
+
 func min(a, b int) int {
 	if a < b {
 		return a
@@ -450,13 +452,41 @@ func main() {
 			return
 
 		case 'j':
-			if fm.cursor+1 < len(fm.items) {
-				fm.cursor++
+			fm.cursor++
+			if fm.cursor >= len(fm.items) {
+				fm.cursor = 0
 			}
 
 		case 'k':
-			if fm.cursor > 0 {
+			if len(fm.items) > 0 {
 				fm.cursor--
+				if fm.cursor < 0 {
+					fm.cursor = len(fm.items) - 1
+				}
+			}
+
+		case '}':
+			if len(fm.items) > 0 {
+				if fm.cursor+1 == len(fm.items) {
+					fm.cursor = 0
+				} else {
+					fm.cursor += BRACE_MOVE_COUNT
+					if fm.cursor >= len(fm.items) {
+						fm.cursor = len(fm.items) - 1
+					}
+				}
+			}
+
+		case '{':
+			if len(fm.items) > 0 {
+				if fm.cursor == 0 {
+					fm.cursor = len(fm.items) - 1
+				} else {
+					fm.cursor -= BRACE_MOVE_COUNT
+					if fm.cursor < 0 {
+						fm.cursor = 0
+					}
+				}
 			}
 
 		case 'g':

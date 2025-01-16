@@ -16,6 +16,8 @@ $ fm
 | ------------ | ---------------------------------------------------- |
 | <kbd>j</kbd> | Move the cursor down                                 |
 | <kbd>k</kbd> | Move the cursor up                                   |
+| <kbd>}</kbd> | Move the cursor 10 items down                        |
+| <kbd>{</kbd> | Move the cursor 10 items up                          |
 | <kbd>g</kbd> | Move the cursor to the top                           |
 | <kbd>G</kbd> | Move the cursor to the bottom                        |
 | <kbd>h</kbd> | Enter Parent Directory                               |
