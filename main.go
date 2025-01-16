@@ -345,6 +345,26 @@ func (fm *Fm) HistoryRestore() {
 	}
 }
 
+func (fm *Fm) Home() {
+	homePath, err := os.UserHomeDir()
+	if err != nil {
+		fm.message = err
+		return
+	}
+
+	items, err := listDir(homePath)
+	if err != nil {
+		fm.message = err
+		return
+	}
+
+	fm.HistorySave()
+	fm.path = homePath
+	fm.items = items
+	fm.cursor = 0
+	fm.HistoryRestore()
+}
+
 func (fm *Fm) Back() {
 	if fm.path != "/" {
 		newPath := filepath.Dir(fm.path)
@@ -505,6 +525,9 @@ func main() {
 
 		case 'e':
 			fm.Enter(os.Getenv("EDITOR"))
+
+		case '~':
+			fm.Home()
 
 		case 'o':
 			query, ok := fm.Prompt("Open: ", "", nil)

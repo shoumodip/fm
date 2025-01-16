@@ -36,6 +36,7 @@ $ fm
 | <kbd>m</kbd> | Move marked items into the current directory         |
 | <kbd>c</kbd> | Copy marked items into the current directory         |
 | <kbd>r</kbd> | Rename item under the cursor                         |
+| <kbd>~</kbd> | Goto `$HOME`                                         |
 
 ## Use Fm to Change Directory
 ```sh
