@@ -70,6 +70,7 @@ type Fm struct {
 	path    string
 	items   []Item
 	cursor  int
+	anchor  int
 	marked  map[string]struct{}
 	history map[string]string
 
@@ -134,12 +135,20 @@ func (fm *Fm) Render() {
 	fm.window.ColorOff(COLOR_TITLE)
 
 	height, _ := fm.window.MaxYX()
+	rows := height - 2
 
-	start := fm.cursor - fm.cursor%(height-2)
-	last := min(len(fm.items), height-2+start)
+	if fm.cursor >= fm.anchor+rows {
+		fm.anchor = fm.cursor - rows + 1
+	}
+
+	if fm.cursor < fm.anchor {
+		fm.anchor = fm.cursor
+	}
+
+	last := min(len(fm.items), rows+fm.anchor)
 
 	line := 1
-	for i := start; i < last; i++ {
+	for i := fm.anchor; i < last; i++ {
 		if i == fm.cursor {
 			fm.window.AttrOn(gc.A_REVERSE)
 		}
