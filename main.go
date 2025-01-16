@@ -336,7 +336,9 @@ func (fm *Fm) FindQueryReverse(pred string, from int) bool {
 }
 
 func (fm *Fm) HistorySave() {
-	fm.history[fm.path] = fm.items[fm.cursor].name
+	if fm.cursor < len(fm.items) {
+		fm.history[fm.path] = fm.items[fm.cursor].name
+	}
 }
 
 func (fm *Fm) HistoryRestore() {
