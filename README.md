@@ -42,13 +42,13 @@ $ fm
 ## Use Fm to Change Directory
 ```sh
 fmcd() {
-    path="$(mktemp -uq)"
-    fm -last-path "$path" "$@"
+    tmp="$(mktemp -uq)"
+    fm -last-path "$tmp" "$@"
 
-    if [ -f "$path" ]; then
-      last="$(cat "$path")"
+    if [ -f "$tmp" ]; then
+      last="$(cat "$tmp")"
       [ -d "$last" ] && cd "$last"
-      rm "$path"
+      rm "$tmp"
     fi
 }
 ```
