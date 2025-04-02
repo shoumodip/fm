@@ -9,8 +9,6 @@ $ go install
 $ fm
 ```
 
-**NOTE:** Make sure `$EDITOR` is set
-
 ## Usage
 | Key          | Description                                          |
 | ------------ | ---------------------------------------------------- |
