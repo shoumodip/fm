@@ -356,20 +356,24 @@ func (fm *Fm) BeginSwitchDir(path string, items []Item) {
 	fm.cursor = 0
 }
 
+func (fm *Fm) GotoDir(dir string) {
+	items, err := listDir(dir)
+	if err != nil {
+		fm.message = err
+		return
+	}
+
+	fm.BeginSwitchDir(dir, items)
+	fm.HistoryRestore()
+}
+
 func (fm *Fm) PrevDir() {
 	if fm.pathPrev == "" {
 		fm.message = errors.New("no previous directory to switch to")
 		return
 	}
 
-	items, err := listDir(fm.pathPrev)
-	if err != nil {
-		fm.message = err
-		return
-	}
-
-	fm.BeginSwitchDir(fm.pathPrev, items)
-	fm.HistoryRestore()
+	fm.GotoDir(fm.pathPrev)
 }
 
 func (fm *Fm) Home() {
@@ -379,27 +383,23 @@ func (fm *Fm) Home() {
 		return
 	}
 
-	items, err := listDir(homePath)
-	if err != nil {
-		fm.message = err
-		return
-	}
-
-	fm.BeginSwitchDir(homePath, items)
-	fm.HistoryRestore()
+	fm.GotoDir(homePath)
 }
 
 func (fm *Fm) Back() {
 	if fm.path != "/" {
 		newPath := filepath.Dir(fm.path)
-		items, err := listDir(newPath)
 
+		items, err := listDir(newPath)
 		if err != nil {
 			fm.message = err
-		} else {
-			fm.BeginSwitchDir(newPath, items)
-			fm.FindExact(filepath.Base(fm.pathPrev))
+			return
 		}
+
+		fm.BeginSwitchDir(newPath, items)
+
+		// This differs from fm.GotoDir() therefore it cannot be used
+		fm.FindExact(filepath.Base(fm.pathPrev))
 	}
 }
 
@@ -567,6 +567,14 @@ func main() {
 
 		case '~':
 			fm.Home()
+
+		case '.':
+			cwd, err := os.Getwd()
+			if err != nil {
+				fm.message = err
+			} else {
+				fm.GotoDir(cwd)
+			}
 
 		case '-':
 			fm.PrevDir()
