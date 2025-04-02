@@ -12,19 +12,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	gc "github.com/vit1251/go-ncursesw"
 )
 
 const BRACE_MOVE_COUNT = 10
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-
-	return b
-}
 
 func handleError(err error) {
 	if err != nil {
@@ -71,6 +64,8 @@ type Fm struct {
 
 	path     string
 	pathPrev string
+
+	count int // For Vim-esque N-actions
 
 	items   []Item
 	cursor  int
@@ -181,12 +176,16 @@ func (fm *Fm) Render() {
 		}
 	}
 
+	if fm.count != 0 {
+		fm.window.MovePrintf(height-1, 0, "%d-", fm.count)
+	}
+
 	if fm.message != nil {
 		fm.window.AttrOn(gc.A_BOLD)
 		fm.window.ColorOn(COLOR_ERROR)
 		fm.window.MovePrint(height-1, 0, fm.message)
-		fm.window.AttrOn(gc.A_BOLD)
-		fm.window.ColorOn(COLOR_ERROR)
+		fm.window.AttrOff(gc.A_BOLD)
+		fm.window.ColorOff(COLOR_ERROR)
 
 		fm.message = nil
 	}
@@ -454,6 +453,20 @@ func (fm *Fm) ToggleMark(index int) {
 	}
 }
 
+func (fm *Fm) ToggleAndMoveDown() {
+	if len(fm.items) > 0 {
+		count := max(1, fm.count)
+		for i := 0; i < count; i++ {
+			fm.ToggleMark(fm.cursor)
+			if fm.cursor+1 < len(fm.items) {
+				fm.cursor++
+			} else {
+				break
+			}
+		}
+	}
+}
+
 func copyFile(srcpath, dstpath string) error {
 	src, err := os.Open(srcpath)
 	if err != nil {
@@ -492,15 +505,21 @@ func main() {
 			return
 
 		case 'j':
-			fm.cursor++
+			fm.cursor += max(1, fm.count)
 			if fm.cursor >= len(fm.items) {
-				fm.cursor = 0
+				if fm.count == 0 || len(fm.items) == 0 {
+					fm.cursor = 0
+				} else {
+					fm.cursor = len(fm.items) - 1
+				}
 			}
 
 		case 'k':
-			if len(fm.items) > 0 {
-				fm.cursor--
-				if fm.cursor < 0 {
+			fm.cursor -= max(1, fm.count)
+			if fm.cursor < 0 {
+				if fm.count != 0 || len(fm.items) == 0 {
+					fm.cursor = 0
+				} else {
 					fm.cursor = len(fm.items) - 1
 				}
 			}
@@ -510,7 +529,7 @@ func main() {
 				if fm.cursor+1 == len(fm.items) {
 					fm.cursor = 0
 				} else {
-					fm.cursor += BRACE_MOVE_COUNT
+					fm.cursor += BRACE_MOVE_COUNT * max(1, fm.count)
 					if fm.cursor >= len(fm.items) {
 						fm.cursor = len(fm.items) - 1
 					}
@@ -522,7 +541,7 @@ func main() {
 				if fm.cursor == 0 {
 					fm.cursor = len(fm.items) - 1
 				} else {
-					fm.cursor -= BRACE_MOVE_COUNT
+					fm.cursor -= BRACE_MOVE_COUNT * max(1, fm.count)
 					if fm.cursor < 0 {
 						fm.cursor = 0
 					}
@@ -586,19 +605,43 @@ func main() {
 
 		case 'n':
 			if len(fm.searchQuery) > 0 {
-				if fm.searchReverse {
-					fm.FindQueryReverse(fm.searchQuery, fm.cursor)
-				} else {
-					fm.FindQuery(fm.searchQuery, fm.cursor)
+				first := -1
+				count := max(1, fm.count)
+				for i := 0; i < count; i++ {
+					if fm.searchReverse {
+						fm.FindQueryReverse(fm.searchQuery, fm.cursor)
+					} else {
+						fm.FindQuery(fm.searchQuery, fm.cursor)
+					}
+
+					if i == 0 {
+						first = fm.cursor
+					} else if fm.cursor == first {
+						n := i + 1
+						left := count - n
+						count = n + left%i
+					}
 				}
 			}
 
 		case 'N':
 			if len(fm.searchQuery) > 0 {
-				if fm.searchReverse {
-					fm.FindQuery(fm.searchQuery, fm.cursor)
-				} else {
-					fm.FindQueryReverse(fm.searchQuery, fm.cursor)
+				first := -1
+				count := max(1, fm.count)
+				for i := 0; i < count; i++ {
+					if fm.searchReverse {
+						fm.FindQuery(fm.searchQuery, fm.cursor)
+					} else {
+						fm.FindQueryReverse(fm.searchQuery, fm.cursor)
+					}
+
+					if i == 0 {
+						first = fm.cursor
+					} else if fm.cursor == first {
+						n := i + 1
+						left := count - n
+						count = n + left%i
+					}
 				}
 			}
 
@@ -627,12 +670,7 @@ func main() {
 			}
 
 		case 'x':
-			if len(fm.items) > 0 {
-				fm.ToggleMark(fm.cursor)
-				if fm.cursor+1 < len(fm.items) {
-					fm.cursor++
-				}
-			}
+			fm.ToggleAndMoveDown()
 
 		case 'X':
 			for index := range fm.items {
@@ -641,9 +679,31 @@ func main() {
 
 		case 'D':
 			deleted := false
+			toggleStart := -1
+
+			if len(fm.marked) == 0 && fm.count != 0 {
+				toggleStart = fm.cursor
+				fm.ToggleAndMoveDown()
+				fm.cursor = toggleStart
+				fm.Render()
+			}
 
 			if len(fm.marked) > 0 {
-				if fm.Confirm("Delete " + strconv.Itoa(len(fm.marked)) + " item(s)") {
+				var prompt string
+				if len(fm.marked) == 1 {
+					for item := range fm.marked {
+						prefix := fm.path
+						if prefix != "/" {
+							prefix += "/"
+						}
+						prompt = "Delete '" + strings.TrimPrefix(item, prefix) + "'"
+						break
+					}
+				} else {
+					prompt = "Delete " + strconv.Itoa(len(fm.marked)) + " item(s)"
+				}
+
+				if fm.Confirm(prompt) {
 					deleted = true
 					for item := range fm.marked {
 						fm.message = os.RemoveAll(item)
@@ -651,6 +711,9 @@ func main() {
 							break
 						}
 					}
+				} else if toggleStart != -1 {
+					fm.ToggleAndMoveDown()
+					fm.cursor = toggleStart
 				}
 			} else if len(fm.items) > 0 {
 				if fm.Confirm("Delete '" + fm.items[fm.cursor].name + "'") {
@@ -709,6 +772,12 @@ func main() {
 				fm.Refresh()
 				fm.FindExact(finalName)
 			}
+		}
+
+		if unicode.IsDigit(rune(ch)) {
+			fm.count = fm.count*10 + int(ch) - '0'
+		} else {
+			fm.count = 0
 		}
 
 		fm.Render()

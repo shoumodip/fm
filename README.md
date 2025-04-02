@@ -39,6 +39,8 @@ $ fm
 | <kbd>~</kbd> | Goto `$HOME`                                         |
 | <kbd>-</kbd> | Goto the previous active directory                   |
 
+Vim-esque `N<Action>` also works, like `69j`, `420x`, `1337D`, etc.
+
 ## Use Fm to Change Directory
 ```sh
 fmcd() {
