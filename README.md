@@ -35,12 +35,17 @@ $ fm
 | <kbd>c</kbd> | Copy marked items into the current directory         |
 | <kbd>r</kbd> | Rename item under the cursor                         |
 | <kbd>~</kbd> | Goto `$HOME`                                         |
-| <kbd>.</kbd> | Goto `$PWD`                                          |
+| <kbd>.</kbd> | Goto the directory `fm` was opened in                |
 | <kbd>-</kbd> | Goto the previous active directory                   |
 
 Vim-esque `N<Action>` also works, like `69j`, `420x`, `1337D`, etc.
 
-## Use Fm to Change Directory
+## Open Fm in a different directory
+```console
+$ fm -init-path <path>
+```
+
+## Use Fm to change directory
 ```sh
 fmcd() {
     tmp="$(mktemp -uq)"

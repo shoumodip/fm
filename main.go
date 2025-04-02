@@ -65,6 +65,7 @@ type Fm struct {
 
 	path     string
 	pathPrev string
+	pathInit string
 
 	count int // For Vim-esque N-actions
 
@@ -114,11 +115,12 @@ func fmInit(path string) Fm {
 	handleError(err)
 
 	fm := Fm{
-		window:  windowInit(),
-		path:    path,
-		items:   items,
-		marked:  make(map[string]struct{}),
-		history: make(map[string]string),
+		window:   windowInit(),
+		path:     path,
+		items:    items,
+		marked:   make(map[string]struct{}),
+		history:  make(map[string]string),
+		pathInit: path,
 	}
 
 	fm.Render()
@@ -618,12 +620,7 @@ func main() {
 			fm.Home()
 
 		case '.':
-			cwd, err := os.Getwd()
-			if err != nil {
-				fm.message = err
-			} else {
-				fm.GotoDir(cwd)
-			}
+			fm.GotoDir(fm.pathInit)
 
 		case '-':
 			fm.PrevDir()
