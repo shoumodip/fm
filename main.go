@@ -14,6 +14,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/shoumodip/fm/line"
 	gc "github.com/vit1251/go-ncursesw"
 )
 
@@ -224,7 +225,7 @@ func (fm *Fm) Prompt(query string, init string, update func(string) bool) (strin
 	gc.Cursor(1)
 	defer gc.Cursor(0)
 
-	input := init
+	input := line.New(init)
 	error := false
 
 	for {
@@ -238,34 +239,82 @@ func (fm *Fm) Prompt(query string, init string, update func(string) bool) (strin
 		fm.window.ClearToEOL()
 
 		if error {
-			fm.window.AttrOn(gc.A_BOLD | gc.A_REVERSE)
+			fm.window.AttrOn(gc.A_BOLD)
 			fm.window.ColorOn(COLOR_ERROR)
 		}
 
-		fm.window.Print(input)
+		fm.window.Print(input.String())
 
 		if error {
-			fm.window.AttrOff(gc.A_BOLD | gc.A_REVERSE)
+			fm.window.AttrOff(gc.A_BOLD)
 			fm.window.ColorOff(COLOR_ERROR)
 		}
 
+		fm.window.Move(height-1, len(query)+input.Cursor)
 		fm.window.Refresh()
 
 		ch := fm.window.GetChar()
-		if ch == 27 {
-			return "", false
-		} else if ch == gc.KEY_RETURN {
-			return input, true
-		} else if ch == gc.KEY_BACKSPACE {
-			if len(input) > 0 {
-				input = input[:len(input)-1]
+		switch ch {
+		case 27:
+			fm.window.Timeout(10)
+			ch := fm.window.GetChar()
+			fm.window.Timeout(-1)
+
+			switch ch {
+			case 0:
+				return "", false
+
+			case 'f':
+				input.NextWord()
+
+			case 'b':
+				input.PrevWord()
+
+			case 'd':
+				input.Delete((*line.Line).NextWord)
+
+			case gc.KEY_BACKSPACE:
+				input.Delete((*line.Line).PrevWord)
 			}
-		} else if strconv.IsPrint(rune(ch)) {
-			input = input + string(byte(ch))
+
+		case 'c' & 0x1f:
+			return "", false
+
+		case 'f' & 0x1f:
+			input.NextChar()
+
+		case 'b' & 0x1f:
+			input.PrevChar()
+
+		case 'a' & 0x1f:
+			input.Start()
+
+		case 'e' & 0x1f:
+			input.End()
+
+		case 'd' & 0x1f:
+			input.Delete((*line.Line).NextChar)
+
+		case 'k' & 0x1f:
+			input.Delete((*line.Line).End)
+
+		case 'u' & 0x1f:
+			input.Delete((*line.Line).Start)
+
+		case gc.KEY_RETURN:
+			return input.String(), true
+
+		case gc.KEY_BACKSPACE:
+			input.Delete((*line.Line).PrevChar)
+
+		default:
+			if strconv.IsPrint(rune(ch)) {
+				input.Insert(byte(ch))
+			}
 		}
 
 		if update != nil {
-			error = !update(input)
+			error = !update(input.String())
 			fm.Render()
 		}
 	}
