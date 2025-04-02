@@ -55,3 +55,10 @@ fmcd() {
     fi
 }
 ```
+
+You can bind it to a shortcut key, for convenience.
+
+```zsh
+# .zshrc
+bindkey -s "^o" "^ufmcd\\n"
+```
