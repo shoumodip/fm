@@ -1,7 +1,7 @@
 # Fm
-A WIP File Manager
+Simple File Manager in Go
 
-![Fm](img/fm-01.jpeg)
+![Fm](img/fm.png)
 
 ## Quick Start
 ```console
