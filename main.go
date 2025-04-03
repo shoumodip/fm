@@ -778,7 +778,7 @@ func main() {
 
 			if deleted {
 				fm.Refresh()
-				fm.cursor = min(fm.cursor, len(fm.items)-1)
+				fm.cursor = max(min(fm.cursor, len(fm.items)-1), 0)
 				fm.marked = make(map[string]struct{})
 			}
 
