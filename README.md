@@ -46,22 +46,18 @@ $ fm -init-path <path>
 ```
 
 ## Use Fm to change directory
-```sh
-fmcd() {
-    tmp="$(mktemp -uq)"
-    fm -last-path "$tmp" "$@"
-
-    if [ -f "$tmp" ]; then
-      last="$(cat "$tmp")"
-      [ -d "$last" ] && cd "$last"
-      rm "$tmp"
-    fi
-}
+```console
+$ cd $(fm -last-path)
 ```
 
 You can bind it to a shortcut key, for convenience.
 
 ```zsh
 # .zshrc
+
+fmcd() {
+    cd $(fm -last-path)
+}
+
 bindkey -s "^o" "^ufmcd\\n"
 ```

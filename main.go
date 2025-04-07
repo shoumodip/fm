@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"unicode"
 
 	"github.com/shoumodip/fm/line"
@@ -22,7 +23,7 @@ const BRACE_MOVE_COUNT = 10
 
 func handleError(err error) {
 	if err != nil {
-		fmt.Println(err)
+		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
 }
@@ -60,6 +61,7 @@ func listDir(path string) ([]Item, error) {
 }
 
 type Fm struct {
+	tty     *os.File
 	window  *gc.Window
 	message error
 
@@ -86,7 +88,13 @@ const (
 	COLOR_TITLE
 )
 
-func windowInit() *gc.Window {
+func terminalInit() (*os.File, *gc.Window) {
+	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
+	handleError(err)
+
+	syscall.Dup2(int(tty.Fd()), int(os.Stdin.Fd()))
+	syscall.Dup2(int(tty.Fd()), int(os.Stdout.Fd()))
+
 	window, err := gc.Init()
 	handleError(err)
 
@@ -104,7 +112,7 @@ func windowInit() *gc.Window {
 	gc.InitPair(COLOR_ERROR, gc.C_RED, -1)
 	gc.InitPair(COLOR_TITLE, gc.C_CYAN, -1)
 
-	return window
+	return tty, window
 }
 
 func fmInit(path string) Fm {
@@ -114,8 +122,10 @@ func fmInit(path string) Fm {
 	items, err := listDir(path)
 	handleError(err)
 
+	tty, window := terminalInit()
 	fm := Fm{
-		window:   windowInit(),
+		tty:      tty,
+		window:   window,
 		path:     path,
 		items:    items,
 		marked:   make(map[string]struct{}),
@@ -476,14 +486,16 @@ func (fm *Fm) Enter(program string) {
 					return
 				}
 			}
+
 			gc.End()
+			fm.tty.Close()
 
 			cmd := exec.Command(program, fm.items[fm.cursor].path)
 			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			fm.message = cmd.Run()
 
-			fm.window = windowInit()
+			fm.tty, fm.window = terminalInit()
 		}
 	}
 }
@@ -535,19 +547,7 @@ func copyFile(srcpath, dstpath string) error {
 	return err
 }
 
-func main() {
-	initPath := flag.String("init-path", "./", "The path to start the application in")
-	lastPath := flag.String("last-path", "", "The path of the file to output the last directory location into")
-	flag.Parse()
-
-	fm := fmInit(*initPath)
-	defer func() {
-		gc.End()
-		if *lastPath != "" {
-			handleError(os.WriteFile(*lastPath, []byte(fm.path), 0644))
-		}
-	}()
-
+func (fm *Fm) RunApp() {
 	for {
 		ch := fm.window.GetChar()
 
@@ -835,5 +835,23 @@ func main() {
 		}
 
 		fm.Render()
+	}
+}
+
+func main() {
+	initPath := flag.String("init-path", "./", "The path to start the application in")
+	lastPath := flag.Bool("last-path", false, "Print the last directory location before exiting")
+	flag.Parse()
+
+	originalStdoutFd, err := syscall.Dup(syscall.Stdout)
+	handleError(err)
+
+	fm := fmInit(*initPath)
+	fm.RunApp()
+
+	gc.End()
+	fm.tty.Close()
+	if *lastPath {
+		syscall.Write(originalStdoutFd, []byte(fm.path+"\n"))
 	}
 }
