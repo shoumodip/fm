@@ -37,6 +37,7 @@ $ fm
 | <kbd>~</kbd> | Goto `$HOME`                                         |
 | <kbd>.</kbd> | Goto the directory `fm` was opened in                |
 | <kbd>-</kbd> | Goto the previous active directory                   |
+| <kbd>H</kbd> | Show this help popup                                 |
 
 Vim-esque `N<Action>` also works, like `69j`, `420x`, `1337D`, etc.
 

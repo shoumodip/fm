@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -205,12 +206,76 @@ func (fm *Fm) Render() {
 	fm.window.Refresh()
 }
 
-func (fm *Fm) Confirm(query string) bool {
+func (fm *Fm) Popup(lines []string, cursor *int) gc.Key {
+	cursorBackup := 0
+	if cursor == nil {
+		cursor = &cursorBackup
+	}
+
+	cy, cx := fm.window.CursorYX()
+	for {
+		h, w := fm.window.MaxYX()
+		y := (h - 1) / 2
+		rows := h - y - 2
+
+		fm.window.HLine(y, 0, gc.ACS_HLINE, w)
+		for i := 0; i < rows; i++ {
+			fm.window.Move(y+i+1, 0)
+			fm.window.ClearToEOL()
+		}
+		fm.window.Move(y+1, 0)
+
+		n := min(rows+*cursor, len(lines))
+		for i := *cursor; i < n; i++ {
+			fm.window.Println(lines[i])
+		}
+
+		fm.window.Move(cy, cx)
+		fm.window.Refresh()
+
+		ch := fm.window.GetChar()
+		switch ch {
+		case 'j':
+			if rows+*cursor < len(lines) {
+				*cursor++
+			}
+
+		case 'k':
+			if *cursor > 0 {
+				*cursor--
+			}
+
+		case 'g':
+			*cursor = 0
+
+		case 'G':
+			if len(lines) > rows {
+				*cursor = len(lines) - rows
+			}
+
+		case '}':
+			if len(lines) > rows {
+				*cursor = min(*cursor+BRACE_MOVE_COUNT, len(lines)-rows)
+			}
+
+		case '{':
+			if len(lines) > rows {
+				*cursor = max(*cursor-BRACE_MOVE_COUNT, 0)
+			}
+
+		default:
+			return ch
+		}
+	}
+}
+
+func (fm *Fm) Confirm(query string, popupLines []string) bool {
 	query = query + " (y/n): "
 
 	gc.Cursor(1)
 	defer gc.Cursor(0)
 
+	popupCursor := 0
 	for {
 		height, _ := fm.window.MaxYX()
 
@@ -220,10 +285,15 @@ func (fm *Fm) Confirm(query string) bool {
 		fm.window.AttrOff(gc.A_BOLD)
 		fm.window.ColorOff(COLOR_DIR)
 		fm.window.ClearToEOL()
-
 		fm.window.Refresh()
 
-		ch := fm.window.GetChar()
+		var ch gc.Key
+		if popupLines == nil {
+			ch = fm.window.GetChar()
+		} else {
+			ch = fm.Popup(popupLines, &popupCursor)
+		}
+
 		if ch == 27 || ch == 'n' || ch == 'N' {
 			return false
 		} else if ch == 'y' || ch == 'Y' {
@@ -546,6 +616,38 @@ func copyFile(srcpath, dstpath string) error {
 	return err
 }
 
+func (fm *Fm) MarkedPromptAndPopup(action string) (string, []string) {
+	var prompt string
+	var popupLines []string = nil
+	if len(fm.marked) == 1 {
+		prefix := fm.path
+		if prefix != "/" {
+			prefix += "/"
+		}
+
+		for item := range fm.marked {
+			prompt = action + " '" + strings.TrimPrefix(item, prefix) + "'"
+			break
+		}
+	} else {
+		prompt = action + " " + strconv.Itoa(len(fm.marked)) + " item(s)"
+		popupLines = []string{}
+
+		prefix := fm.path
+		if prefix != "/" {
+			prefix += "/"
+		}
+
+		for item := range fm.marked {
+			popupLines = append(popupLines, strings.TrimPrefix(item, prefix))
+		}
+
+		slices.Sort(popupLines)
+	}
+
+	return prompt, popupLines
+}
+
 func (fm *Fm) RunApp() {
 	for {
 		ch := fm.window.GetChar()
@@ -553,6 +655,36 @@ func (fm *Fm) RunApp() {
 		switch ch {
 		case 'q':
 			return
+
+		case 'H':
+			fm.Popup([]string{
+				"j    Move the cursor down",
+				"k    Move the cursor up",
+				"}    Move the cursor 10 items down",
+				"{    Move the cursor 10 items up",
+				"g    Move the cursor to the top",
+				"G    Move the cursor to the bottom",
+				"h    Enter Parent Directory",
+				"l    Enter item under the cursor",
+				"e    Open item under the cursor with `$EDITOR`",
+				"o    Open item under the cursor with arbitrary program",
+				"/    Search for items",
+				"?    Search for items backwards",
+				"n    Find the next match for the previous search",
+				"N    Find the previous match for the previous search",
+				"d    Create a directory",
+				"f    Create a file",
+				"x    Toggle mark for the item under the cursor",
+				"X    Toggle marks in the current directory",
+				"D    Delete marked items, otherwise item under the cursor",
+				"m    Move marked items into the current directory",
+				"c    Copy marked items into the current directory",
+				"r    Rename item under the cursor",
+				"~    Goto `$HOME`",
+				".    Goto the directory `fm` was opened in",
+				"-    Goto the previous active directory",
+				"H    Show this help popup",
+			}, nil)
 
 		case 'j':
 			fm.cursor += max(1, fm.count)
@@ -742,21 +874,7 @@ func (fm *Fm) RunApp() {
 			}
 
 			if len(fm.marked) > 0 {
-				var prompt string
-				if len(fm.marked) == 1 {
-					for item := range fm.marked {
-						prefix := fm.path
-						if prefix != "/" {
-							prefix += "/"
-						}
-						prompt = "Delete '" + strings.TrimPrefix(item, prefix) + "'"
-						break
-					}
-				} else {
-					prompt = "Delete " + strconv.Itoa(len(fm.marked)) + " item(s)"
-				}
-
-				if fm.Confirm(prompt) {
+				if fm.Confirm(fm.MarkedPromptAndPopup("Delete")) {
 					deleted = true
 					for item := range fm.marked {
 						fm.message = os.RemoveAll(item)
@@ -769,7 +887,7 @@ func (fm *Fm) RunApp() {
 					fm.cursor = toggleStart
 				}
 			} else if len(fm.items) > 0 {
-				if fm.Confirm("Delete '" + fm.items[fm.cursor].name + "'") {
+				if fm.Confirm("Delete '"+fm.items[fm.cursor].name+"'", nil) {
 					deleted = true
 					fm.message = os.RemoveAll(fm.items[fm.cursor].path)
 				}
@@ -783,7 +901,7 @@ func (fm *Fm) RunApp() {
 
 		case 'm':
 			if len(fm.marked) > 0 {
-				if fm.Confirm("Move " + strconv.Itoa(len(fm.marked)) + " item(s)") {
+				if fm.Confirm(fm.MarkedPromptAndPopup("Move")) {
 					for item := range fm.marked {
 						fm.message = os.Rename(item, filepath.Join(fm.path, filepath.Base(item)))
 						if fm.message != nil {
@@ -798,7 +916,7 @@ func (fm *Fm) RunApp() {
 
 		case 'c':
 			if len(fm.marked) > 0 {
-				if fm.Confirm("Copy " + strconv.Itoa(len(fm.marked)) + " item(s)") {
+				if fm.Confirm(fm.MarkedPromptAndPopup("Copy")) {
 					for item := range fm.marked {
 						fm.message = copyFile(item, filepath.Join(fm.path, filepath.Base(item)))
 						if fm.message != nil {
