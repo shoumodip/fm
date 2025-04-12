@@ -218,11 +218,19 @@ func (fm *Fm) Popup(lines []string, cursor *int) gc.Key {
 		y := (h - 1) / 2
 		rows := h - y - 2
 
+		message := " Use j/k/}/{/g/G to navigate "
 		fm.window.HLine(y, 0, gc.ACS_HLINE, w)
+		fm.window.AttrOn(gc.A_BOLD)
+		fm.window.ColorOn(COLOR_TITLE)
+		fm.window.MovePrint(y, (w-len(message))/2, message)
+		fm.window.AttrOff(gc.A_BOLD)
+		fm.window.ColorOff(COLOR_TITLE)
+
 		for i := 0; i < rows; i++ {
 			fm.window.Move(y+i+1, 0)
 			fm.window.ClearToEOL()
 		}
+
 		fm.window.Move(y+1, 0)
 
 		n := min(rows+*cursor, len(lines))
