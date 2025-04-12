@@ -15,7 +15,6 @@ import (
 	"syscall"
 	"unicode"
 
-	"github.com/shoumodip/fm/line"
 	gc "github.com/vit1251/go-ncursesw"
 )
 
@@ -237,7 +236,7 @@ func (fm *Fm) Prompt(query string, init string, update func(string) bool) (strin
 	gc.Cursor(1)
 	defer gc.Cursor(0)
 
-	input := line.New(init)
+	input := NewLine(init)
 	error := false
 
 	for {
@@ -262,7 +261,7 @@ func (fm *Fm) Prompt(query string, init string, update func(string) bool) (strin
 			fm.window.ColorOff(COLOR_ERROR)
 		}
 
-		fm.window.Move(height-1, len(query)+input.Cursor)
+		fm.window.Move(height-1, len(query)+input.cursor)
 		fm.window.Refresh()
 
 		ch := fm.window.GetChar()
@@ -283,10 +282,10 @@ func (fm *Fm) Prompt(query string, init string, update func(string) bool) (strin
 				input.PrevWord()
 
 			case 'd':
-				input.Delete((*line.Line).NextWord)
+				input.Delete((*Line).NextWord)
 
 			case gc.KEY_BACKSPACE:
-				input.Delete((*line.Line).PrevWord)
+				input.Delete((*Line).PrevWord)
 			}
 
 		case 'c' & 0x1f:
@@ -305,19 +304,19 @@ func (fm *Fm) Prompt(query string, init string, update func(string) bool) (strin
 			input.End()
 
 		case 'd' & 0x1f:
-			input.Delete((*line.Line).NextChar)
+			input.Delete((*Line).NextChar)
 
 		case 'k' & 0x1f:
-			input.Delete((*line.Line).End)
+			input.Delete((*Line).End)
 
 		case 'u' & 0x1f:
-			input.Delete((*line.Line).Start)
+			input.Delete((*Line).Start)
 
 		case gc.KEY_RETURN:
 			return input.String(), true
 
 		case gc.KEY_BACKSPACE:
-			input.Delete((*line.Line).PrevChar)
+			input.Delete((*Line).PrevChar)
 
 		default:
 			if strconv.IsPrint(rune(ch)) {

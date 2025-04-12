@@ -1,4 +1,4 @@
-package line
+package main
 
 import (
 	"slices"
@@ -7,38 +7,38 @@ import (
 
 type Line struct {
 	buffer []byte
-	Cursor int
+	cursor int
 }
 
-func New(s string) Line {
+func NewLine(s string) Line {
 	return Line{
 		buffer: []byte(s),
-		Cursor: len(s),
+		cursor: len(s),
 	}
 }
 
 func (l *Line) Insert(ch byte) {
-	l.buffer = slices.Insert(l.buffer, l.Cursor, ch)
-	l.Cursor++
+	l.buffer = slices.Insert(l.buffer, l.cursor, ch)
+	l.cursor++
 }
 
 func (l *Line) Start() {
-	l.Cursor = 0
+	l.cursor = 0
 }
 
 func (l *Line) End() {
-	l.Cursor = len(l.buffer)
+	l.cursor = len(l.buffer)
 }
 
 func (l *Line) PrevChar() {
-	if l.Cursor > 0 {
-		l.Cursor--
+	if l.cursor > 0 {
+		l.cursor--
 	}
 }
 
 func (l *Line) NextChar() {
-	if l.Cursor < len(l.buffer) {
-		l.Cursor++
+	if l.cursor < len(l.buffer) {
+		l.cursor++
 	}
 }
 
@@ -47,44 +47,44 @@ func isWord(ch rune) bool {
 }
 
 func (l *Line) PrevWord() {
-	if l.Cursor == 0 {
+	if l.cursor == 0 {
 		return
 	}
 
-	for l.Cursor > 0 && !isWord(rune(l.buffer[l.Cursor-1])) {
-		l.Cursor--
+	for l.cursor > 0 && !isWord(rune(l.buffer[l.cursor-1])) {
+		l.cursor--
 	}
 
-	for l.Cursor > 0 && isWord(rune(l.buffer[l.Cursor-1])) {
-		l.Cursor--
+	for l.cursor > 0 && isWord(rune(l.buffer[l.cursor-1])) {
+		l.cursor--
 	}
 }
 
 func (l *Line) NextWord() {
-	if l.Cursor >= len(l.buffer) {
+	if l.cursor >= len(l.buffer) {
 		return
 	}
 
-	for l.Cursor < len(l.buffer) && !isWord(rune(l.buffer[l.Cursor])) {
-		l.Cursor++
+	for l.cursor < len(l.buffer) && !isWord(rune(l.buffer[l.cursor])) {
+		l.cursor++
 	}
 
-	for l.Cursor < len(l.buffer) && isWord(rune(l.buffer[l.Cursor])) {
-		l.Cursor++
+	for l.cursor < len(l.buffer) && isWord(rune(l.buffer[l.cursor])) {
+		l.cursor++
 	}
 }
 
 func (l *Line) Delete(motion func(*Line)) {
-	mark := l.Cursor
+	mark := l.cursor
 	motion(l)
 
-	start, end := mark, l.Cursor
+	start, end := mark, l.cursor
 	if start > end {
 		start, end = end, start
 	}
 
 	l.buffer = slices.Delete(l.buffer, start, end)
-	l.Cursor = start
+	l.cursor = start
 }
 
 func (l Line) String() string {
