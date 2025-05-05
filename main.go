@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +33,16 @@ type Item struct {
 	isDir bool
 }
 
+func sortItems(items []Item) {
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].isDir != items[j].isDir {
+			return items[i].isDir
+		} else {
+			return items[i].name < items[j].name
+		}
+	})
+}
+
 func listDir(path string) ([]Item, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
@@ -49,14 +58,7 @@ func listDir(path string) ([]Item, error) {
 		}
 	}
 
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].isDir != items[j].isDir {
-			return items[i].isDir
-		} else {
-			return items[i].name < items[j].name
-		}
-	})
-
+	sortItems(items)
 	return items, nil
 }
 
@@ -74,7 +76,7 @@ type Fm struct {
 	items   []Item
 	cursor  int
 	anchor  int
-	marked  map[string]struct{}
+	marked  map[string]bool
 	history map[string]string
 
 	searchQuery   string
@@ -128,7 +130,7 @@ func fmInit(path string) Fm {
 		window:   window,
 		path:     path,
 		items:    items,
-		marked:   make(map[string]struct{}),
+		marked:   make(map[string]bool),
 		history:  make(map[string]string),
 		pathInit: path,
 	}
@@ -589,7 +591,7 @@ func (fm *Fm) ToggleMark(index int) {
 	if _, ok := fm.marked[item.path]; ok {
 		delete(fm.marked, item.path)
 	} else {
-		fm.marked[item.path] = struct{}{}
+		fm.marked[item.path] = item.isDir
 	}
 }
 
@@ -639,18 +641,30 @@ func (fm *Fm) MarkedPromptAndPopup(action string) (string, []string) {
 		}
 	} else {
 		prompt = action + " " + strconv.Itoa(len(fm.marked)) + " item(s)"
-		popupLines = []string{}
 
 		prefix := fm.path
 		if prefix != "/" {
 			prefix += "/"
 		}
 
-		for item := range fm.marked {
-			popupLines = append(popupLines, strings.TrimPrefix(item, prefix))
+		popupItems := []Item{}
+		for item, isDir := range fm.marked {
+			popupItems = append(popupItems, Item{
+				name:  strings.TrimPrefix(item, prefix),
+				isDir: isDir,
+			})
 		}
 
-		slices.Sort(popupLines)
+		sortItems(popupItems)
+
+		popupLines = []string{}
+		for _, item := range popupItems {
+			if item.isDir {
+				popupLines = append(popupLines, item.name+"/")
+			} else {
+				popupLines = append(popupLines, item.name)
+			}
+		}
 	}
 
 	return prompt, popupLines
@@ -904,7 +918,7 @@ func (fm *Fm) RunApp() {
 			if deleted {
 				fm.Refresh()
 				fm.cursor = max(min(fm.cursor, len(fm.items)-1), 0)
-				fm.marked = make(map[string]struct{})
+				fm.marked = make(map[string]bool)
 			}
 
 		case 'm':
@@ -918,7 +932,7 @@ func (fm *Fm) RunApp() {
 					}
 
 					fm.Refresh()
-					fm.marked = make(map[string]struct{})
+					fm.marked = make(map[string]bool)
 				}
 			}
 
@@ -933,7 +947,7 @@ func (fm *Fm) RunApp() {
 					}
 
 					fm.Refresh()
-					fm.marked = make(map[string]struct{})
+					fm.marked = make(map[string]bool)
 				}
 			}
 
