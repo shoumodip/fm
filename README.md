@@ -48,12 +48,12 @@ removes the last digit of the count.
 
 ## Open Fm in a different directory
 ```console
-$ fm -init-path <path>
+$ fm <path>
 ```
 
 ## Use Fm to change directory
 ```console
-$ cd $(fm -last-path)
+$ cd $(fm -l)
 ```
 
 You can bind it to a shortcut key, for convenience.
@@ -62,7 +62,7 @@ You can bind it to a shortcut key, for convenience.
 # .zshrc
 
 fmcd() {
-    cd $(fm -last-path)
+    cd $(fm -l)
 }
 
 bindkey -s "^o" "^ufmcd\\n"

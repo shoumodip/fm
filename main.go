@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -18,11 +17,19 @@ import (
 	gc "github.com/vit1251/go-ncursesw"
 )
 
-const BRACE_MOVE_COUNT = 10
+const (
+	BRACE_MOVE_COUNT = 10
+
+	ANSI_STYLE_NONE    = "\033[0m"
+	ANSI_STYLE_FLAG    = "\033[35m"
+	ANSI_STYLE_ERROR   = "\033[1;31m"
+	ANSI_STYLE_HEADER  = "\033[1;36m"
+	ANSI_STYLE_COMMAND = "\033[1;32m"
+)
 
 func handleError(err error) {
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+		fmt.Fprintln(os.Stderr, ANSI_STYLE_ERROR+"Error:"+ANSI_STYLE_NONE, err)
 		os.Exit(1)
 	}
 }
@@ -1031,20 +1038,71 @@ func (fm *Fm) RunApp() {
 	}
 }
 
+func usage(stream io.Writer) {
+	fmt.Fprintln(stream, ANSI_STYLE_HEADER+"Usage:"+ANSI_STYLE_NONE)
+	fmt.Fprintln(stream, "    "+ANSI_STYLE_COMMAND+"fm"+ANSI_STYLE_NONE+" [FLAGS] [PATH]")
+	fmt.Fprintln(stream)
+	fmt.Fprintln(stream, ANSI_STYLE_HEADER+"Flags:"+ANSI_STYLE_NONE)
+
+	fmt.Fprintln(stream, "    "+ANSI_STYLE_FLAG+"-h"+ANSI_STYLE_NONE+
+		", "+ANSI_STYLE_FLAG+"-help"+ANSI_STYLE_NONE+
+		"       Show this help message")
+
+	fmt.Fprintln(stream, "    "+ANSI_STYLE_FLAG+"-l"+ANSI_STYLE_NONE+
+		", "+ANSI_STYLE_FLAG+"-last-path"+ANSI_STYLE_NONE+
+		"  Print the last directory location before exiting")
+}
+
+func parseArgs() (initPath string, lastPath bool) {
+	for i, arg := range os.Args {
+		if i == 0 {
+			continue
+		}
+
+		switch arg {
+		case "-h", "--h", "-help", "--help":
+			usage(os.Stdout)
+			os.Exit(0)
+
+		case "-l", "--l", "-last-path", "--last-path":
+			lastPath = true
+
+		default:
+			if strings.HasPrefix(arg, "-") {
+				fmt.Fprintln(
+					os.Stderr,
+					ANSI_STYLE_ERROR+"Error:"+ANSI_STYLE_NONE,
+					"invalid flag '"+ANSI_STYLE_FLAG+arg+ANSI_STYLE_NONE+"'")
+
+				fmt.Fprintln(os.Stderr)
+				usage(os.Stderr)
+				os.Exit(1)
+			} else {
+				initPath = arg
+			}
+			return
+		}
+	}
+
+	return
+}
+
 func main() {
-	initPath := flag.String("init-path", "./", "The path to start the application in")
-	lastPath := flag.Bool("last-path", false, "Print the last directory location before exiting")
-	flag.Parse()
+	initPath, lastPath := parseArgs()
 
-	originalStdoutFd, err := syscall.Dup(syscall.Stdout)
-	handleError(err)
+	var originalStdoutFd int
+	if lastPath {
+		var err error
+		originalStdoutFd, err = syscall.Dup(syscall.Stdout)
+		handleError(err)
+	}
 
-	fm := fmInit(*initPath)
+	fm := fmInit(initPath)
 	fm.RunApp()
 
 	gc.End()
 	fm.tty.Close()
-	if *lastPath {
+	if lastPath {
 		syscall.Write(originalStdoutFd, []byte(fm.path+"\n"))
 	}
 }
