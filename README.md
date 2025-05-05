@@ -43,7 +43,8 @@ $ fm
 | <kbd>C-u</kbd> | Move the view 10 items up                            |
 | <kbd>C-d</kbd> | Move the view 10 items down                          |
 
-Vim-esque `N<Action>` also works, like `69j`, `420x`, `1337D`, etc.
+Vim-esque `N<Action>` also works, like `69j`, `420x`, `1337D`, etc. Backspace
+removes the last digit of the count.
 
 ## Open Fm in a different directory
 ```console

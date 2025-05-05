@@ -811,8 +811,11 @@ func (fm *Fm) RunApp() {
 				fm.cursor = len(fm.items) - 1
 			}
 
-		case 'h', gc.KEY_BACKSPACE:
+		case 'h':
 			fm.Back()
+
+		case gc.KEY_BACKSPACE:
+			fm.count /= 10
 
 		case 'l', gc.KEY_RETURN:
 			fm.Enter("")
@@ -1020,7 +1023,7 @@ func (fm *Fm) RunApp() {
 
 		if unicode.IsDigit(rune(ch)) {
 			fm.count = fm.count*10 + int(ch) - '0'
-		} else {
+		} else if ch != gc.KEY_BACKSPACE {
 			fm.count = 0
 		}
 
