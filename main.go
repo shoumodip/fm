@@ -76,11 +76,14 @@ type Fm struct {
 	items   []Item
 	cursor  int
 	anchor  int
+	height  int
 	marked  map[string]bool
 	history map[string]string
 
 	searchQuery   string
 	searchReverse bool
+
+	showedInitHelpMessage bool
 }
 
 const (
@@ -148,8 +151,8 @@ func (fm *Fm) Render() {
 	fm.window.AttrOff(gc.A_BOLD)
 	fm.window.ColorOff(COLOR_TITLE)
 
-	height, _ := fm.window.MaxYX()
-	rows := height - 2
+	fm.height, _ = fm.window.MaxYX()
+	rows := fm.height - 2
 
 	if fm.cursor >= fm.anchor+rows {
 		fm.anchor = fm.cursor - rows + 1
@@ -192,13 +195,18 @@ func (fm *Fm) Render() {
 	}
 
 	if fm.count != 0 {
-		fm.window.MovePrintf(height-1, 0, "%d-", fm.count)
+		fm.window.MovePrintf(fm.height-1, 0, "%d-", fm.count)
+	}
+
+	if !fm.showedInitHelpMessage {
+		fm.window.MovePrint(fm.height-1, 0, "Press H to get help")
+		fm.showedInitHelpMessage = true
 	}
 
 	if fm.message != nil {
 		fm.window.AttrOn(gc.A_BOLD)
 		fm.window.ColorOn(COLOR_ERROR)
-		fm.window.MovePrint(height-1, 0, fm.message)
+		fm.window.MovePrint(fm.height-1, 0, fm.message)
 		fm.window.AttrOff(gc.A_BOLD)
 		fm.window.ColorOff(COLOR_ERROR)
 
@@ -216,17 +224,13 @@ func (fm *Fm) Popup(lines []string, cursor *int) gc.Key {
 
 	cy, cx := fm.window.CursorYX()
 	for {
-		h, w := fm.window.MaxYX()
-		y := (h - 1) / 2
-		rows := h - y - 2
+		var width int
+		fm.height, width = fm.window.MaxYX()
 
-		message := " Use j/k/}/{/g/G to navigate "
-		fm.window.HLine(y, 0, gc.ACS_HLINE, w)
-		fm.window.AttrOn(gc.A_BOLD)
-		fm.window.ColorOn(COLOR_TITLE)
-		fm.window.MovePrint(y, (w-len(message))/2, message)
-		fm.window.AttrOff(gc.A_BOLD)
-		fm.window.ColorOff(COLOR_TITLE)
+		y := (fm.height - 1) / 2
+		rows := fm.height - y - 2
+
+		fm.window.HLine(y, 0, gc.ACS_HLINE, width)
 
 		for i := 0; i < rows; i++ {
 			fm.window.Move(y+i+1, 0)
@@ -263,12 +267,12 @@ func (fm *Fm) Popup(lines []string, cursor *int) gc.Key {
 				*cursor = len(lines) - rows
 			}
 
-		case '}':
+		case '}', 'd' & 0x1f:
 			if len(lines) > rows {
 				*cursor = min(*cursor+BRACE_MOVE_COUNT, len(lines)-rows)
 			}
 
-		case '{':
+		case '{', 'u' & 0x1f:
 			if len(lines) > rows {
 				*cursor = max(*cursor-BRACE_MOVE_COUNT, 0)
 			}
@@ -670,6 +674,36 @@ func (fm *Fm) MarkedPromptAndPopup(action string) (string, []string) {
 	return prompt, popupLines
 }
 
+func (fm *Fm) MoveViewUp(stableCursor bool) {
+	if stableCursor {
+		if fm.anchor < BRACE_MOVE_COUNT {
+			fm.cursor = max(fm.cursor-BRACE_MOVE_COUNT, 0)
+		} else {
+			fm.anchor -= BRACE_MOVE_COUNT
+			fm.cursor -= BRACE_MOVE_COUNT
+		}
+	} else if fm.anchor > 0 {
+		fm.anchor = max(fm.anchor-max(1, fm.count), 0)
+		fm.cursor = min(fm.cursor, fm.anchor+fm.height-3)
+	}
+}
+
+func (fm *Fm) MoveViewDown(stableCursor bool) {
+	if len(fm.items) > 0 {
+		if stableCursor {
+			if len(fm.items) <= fm.anchor+fm.height-3 {
+				fm.cursor = min(fm.cursor+BRACE_MOVE_COUNT, len(fm.items)-1)
+			} else {
+				fm.anchor += BRACE_MOVE_COUNT
+				fm.cursor += BRACE_MOVE_COUNT
+			}
+		} else {
+			fm.anchor = min(fm.anchor+max(1, fm.count), len(fm.items)-1)
+			fm.cursor = max(fm.cursor, fm.anchor)
+		}
+	}
+}
+
 func (fm *Fm) RunApp() {
 	for {
 		ch := fm.window.GetChar()
@@ -679,6 +713,7 @@ func (fm *Fm) RunApp() {
 			return
 
 		case 'H':
+			fm.Render()
 			fm.Popup([]string{
 				"j    Move the cursor down",
 				"k    Move the cursor up",
@@ -706,6 +741,10 @@ func (fm *Fm) RunApp() {
 				".    Goto the directory `fm` was opened in",
 				"-    Goto the previous active directory",
 				"H    Show this help popup",
+				"C-y  Move the view 1 item up",
+				"C-e  Move the view 1 item down",
+				"C-u  Move the view 10 items up",
+				"C-d  Move the view 10 items down",
 			}, nil)
 
 		case 'j':
@@ -727,6 +766,18 @@ func (fm *Fm) RunApp() {
 					fm.cursor = len(fm.items) - 1
 				}
 			}
+
+		case 'e' & 0x1f:
+			fm.MoveViewDown(false)
+
+		case 'y' & 0x1f:
+			fm.MoveViewUp(false)
+
+		case 'd' & 0x1f:
+			fm.MoveViewDown(true)
+
+		case 'u' & 0x1f:
+			fm.MoveViewUp(true)
 
 		case '}':
 			if len(fm.items) > 0 {
